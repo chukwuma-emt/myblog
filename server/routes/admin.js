@@ -7,7 +7,7 @@ const bcrypt = require('bcrypt')
 const  jwt = require('jsonwebtoken');
 const expressEjsLayouts = require('express-ejs-layouts');
 
-const adminLayout = 'Layouts/admin';
+const adminLayout = 'layouts/admin';
 const jwtSecret = process.env.JWT_SECRET;
 
 
