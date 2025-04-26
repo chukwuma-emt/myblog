@@ -4,9 +4,10 @@ const router = express.Router()
 const Post = require('../models/Post');
 const User = require('../models/User');
 const bcrypt = require('bcrypt')
-const  jwt = require('jsonwebtoken')
+const  jwt = require('jsonwebtoken');
+const expressEjsLayouts = require('express-ejs-layouts');
 
-const adminLayout = '../views/Layouts/admin';
+const adminLayout = 'Layouts/admin';
 const jwtSecret = process.env.JWT_SECRET;
 
 
@@ -44,7 +45,7 @@ router.get('/admin', async (req,res)=>{
         }
 
         const data = await Post.find();
-        res.render('admin/index',{ locals, layout: adminLayout});
+        res.render('admin/index',{ locals, layouts: adminLayout});
     } catch (error) {
         console.log(error)
     }
