@@ -12,7 +12,8 @@ const { isActiveRoute } = require('./server/helpers/routerHelpers')
 
 
 const app = express();
-const PORT = 10000 || process.env.PORT;
+const PORT = process.env.PORT || 10000;
+
 
 //connect to database
 connectDB();
