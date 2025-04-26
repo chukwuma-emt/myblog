@@ -45,7 +45,7 @@ router.get('/admin', async (req,res)=>{
         }
 
         const data = await Post.find();
-        res.render('admin/index',{ locals, layouts: adminLayout});
+        res.render('admin/index',{ locals, layout: adminLayout, currentRoute: req.path});
     } catch (error) {
         console.log(error)
     }
@@ -101,7 +101,8 @@ try {
     return res.render('admin/dashboard', {
         locals, 
         data,
-        layout: adminLayout
+        layout: adminLayout,
+        currentRoute: req.path
     })
 
 } catch (error) {
@@ -127,7 +128,8 @@ router.get('/add-post', authMiddleware, async (req,res)=> {
         const data = await Post.find()
         return res.render('admin/add-post', {
             locals, 
-            layout: adminLayout
+            layout: adminLayout,
+            currentRoute: req.path
         })
     
     } catch (error) {
@@ -181,7 +183,8 @@ router.post('/add-post', authMiddleware, async (req,res)=> {
            res.render('admin/edit-post', {
             locals,
             data,
-            layout: adminLayout
+            layout: adminLayout,
+            currentRoute: req.path
            })
         } catch (error) {
             console.log(error)
