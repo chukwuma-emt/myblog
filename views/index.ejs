@@ -4,24 +4,26 @@
     
 </div>
 
-<img src="/img/chukwuma.jpg" alt="person looking out through window" class="hero-image" width="981" height="528">
+<div class="my-img"><img src="/img/chukwuma.jpg" alt="person looking out through window" class="hero-image" width="981" height="528">
+</div>
 
 <section class="articles">
     <h2 class="articles__heading"> Latest Post</h2>
 
-    <ul class="article-ul">
+    <div class="articles-cards">
 
         <% data.forEach(post => { %>
          
-        
-        <li>
-            <a href="/post/<%= post._id %>"
-                <span ><%= post.title %></span>
-                <span class="article-list_date"><%= post.createdAt.toDateString() %></span>
+        <div class="card">
+          
+            <a href="/post/<%= post._id %>">
+                <h2><%= post.title %></h2>
+                <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
             </a>
-        </li>
+        
+        </div>
         <% }) %>
-    </ul>
+    </div>
 
     <% if (nextPage !== null) { %>
      <a href="/?page=<%= nextPage %>" class="pagination">&lt; View Older Posts</a>
