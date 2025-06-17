@@ -232,7 +232,7 @@ router.post('/register', async (req,res)=>{
 
     try {
         const user = await User.create({ username, password: hashedPassword})
-        return res.redirect('/admin?error= please login here')
+        return res.redirect('/admin?error=account created!!! please login here')
         //res.status(201).json({ message: 'User Created', user})
     } catch (error) {
         if(error.code === 11000){
