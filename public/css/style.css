@@ -14,6 +14,10 @@ li{
     list-style: none;
 }
 
+
+
+
+
 .header__logo{
     background-color: rgb(42, 130, 165);
     border-radius: 25px;
@@ -26,10 +30,16 @@ li{
     border-radius: 10px;
 }
 
+.searchBar{
+    display: none;
+}
+
 ul{
     display: flex;
     gap: 20px;
 }
+
+
 
 
 .auther{
@@ -113,6 +123,70 @@ ul{
 
 }
 
+
+
+.h3{
+    margin-top: 30px;
+}
+
+
+
+
+h3{
+    text-align: center;
+    color: #fff;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+form{
+    max-width: 300px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.1);
+    border: 1px solid #ccc;
+}
+
+form label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+form input[type='text'] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-size: 1rem;
+}
+
+form input[type='submit'].btn {
+    width: 100%;
+    padding: 10px;
+    background: #007bff;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 8px;
+    transition: background 0.3s ease;
+    cursor: pointer;
+}
+
+form input [type='submit'].btn:hover {
+    background: #0056b3;
+}
+
+
+
+
+
+
 @media (max-width: 767px) {
     .articles-cards{
         flex-direction: column;
@@ -122,6 +196,19 @@ ul{
     .card{
         width: 90%;
     }
+
+
+
+
+    form {
+        padding: 15px;
+        max-width: 90%;
+    }
+
+    h3{
+        font-size: 1.2rem;
+    }
+
 }
 
 
@@ -153,7 +240,7 @@ a:hover{
     align-items: center;
     justify-content: space-between;
     background-color: rgb(95, 94, 94);
-    position: fixed;
+
     width: 100%;
 }
 

@@ -26,6 +26,7 @@ const authMiddleware = (req,res, next)=> {
         req.userId = decoded.id
         next();
     } catch (error) {
+        
         return res.status(401).json({message: 'unauthorized'})
     }
 }
@@ -41,7 +42,8 @@ router.get('/admin', async (req,res)=>{
     try {
         const locals = {
             title: "Admin",
-            description: "simple blog created with nodejs , express and mongodb"
+            description: "simple blog created with nodejs , express and mongodb",
+            error: req.query.error
         }
 
         const data = await Post.find();
@@ -64,23 +66,26 @@ router.post('/admin', async (req,res)=>{
     const user = await User.findOne({ username})
 
      if(!user){
-        return res.status(401).json( { message: 'invalid credential'})
-
+        //return res.status(401).json( { message: 'invalid credential'})
+        return res.redirect('/admin?error=invalid credentials')
      }
       const isPasswordValid = await bcrypt.compare(password, user.password)
 
       if(!isPasswordValid) {
-        return res.status(401).json( { message: 'invalid credential'})
+        return res.redirect('/admin?error=invalid credentials')
+        //return res.status(401).json( { message: 'invalid credential'})
       }
 
       const token = jwt.sign({userId: user._id}, jwtSecret )
       res.cookie('token', token, { httpOnly: true});
+
       
       return res.redirect('/dashboard')
 
 
     } catch (error) {
         console.log(error)
+        return res.redirect('/admin?error=an error occurred')
     }
         
     });
@@ -227,10 +232,12 @@ router.post('/register', async (req,res)=>{
 
     try {
         const user = await User.create({ username, password: hashedPassword})
-        res.status(201).json({ message: 'User Created', user})
+        return res.redirect('/admin?error= please login here')
+        //res.status(201).json({ message: 'User Created', user})
     } catch (error) {
         if(error.code === 11000){
-            res.status(409).json({ message: 'User already in user'})
+            return res.redirect('/admin?error=this User already in exist! login or create new account')
+            //res.status(409).json({ message: 'User already in user'})
         }
         res.status(500).json({ message: 'internal server error'})
     }
@@ -283,7 +290,7 @@ if(req.body.username === 'admin' && req.body.password === 'password'){
 router.get('/logout', (req,res)=>{
     res.clearCookie('token')
     //res.json({message: 'logout successful'})
-    res.redirect('/')
+    res.redirect('/admin')
 })
 
 
