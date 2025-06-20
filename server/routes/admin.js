@@ -197,26 +197,26 @@ router.post('/add-post', authMiddleware, upload.single('image'), async (req,res)
 
 
 
-    router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req,res)=> {
-   
-
+   router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req,res)=> {
         try {
             
-           await Post.findByIdAndUpdate(req.params.id, {
+          // await Post.findByIdAndUpdate(req.params.id,
+            const updatedPost = {
             title: req.body.title,
             body:req.body.body,
             updatedAt: Date.now()
-           })
+           }
            if (req.file){
             updatedPost.image = req.file.filename
            }
+
+           await Post.findByIdAndUpdate(req.params.id, updatedPost)
            res.redirect(`/edit-post/${req.params.id}`)
         } catch (error) {
             console.log(error)
         }
        
         })
-    
 
 
 /*
