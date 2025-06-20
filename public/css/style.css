@@ -78,6 +78,7 @@ ul{
     gap: 20px;
     flex-wrap: wrap;
     justify-content: center;
+
 }
 
 .card {
@@ -89,6 +90,13 @@ ul{
     transition: transform 0.3s ease, background 0.3s ease;
     text-decoration: none;
     color: #000;
+}
+
+.card a img{
+    max-width: 100px;
+    height: auto;
+    border-radius: 8px;
+    float: left;
 }
 
 .card:hover{
@@ -124,6 +132,14 @@ ul{
 }
 
 
+
+.admin-posts{
+    display: flex;
+}
+
+.delete-post{
+    align-items: center;
+}
 
 .h3{
     margin-top: 30px;

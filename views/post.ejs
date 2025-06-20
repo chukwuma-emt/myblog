@@ -1,3 +1,7 @@
+ <% if (data.image) { %>
+              <img src="/uploads/<%= data.image %>" alt="post image" style="max-width: 400px; height: auto;" > 
+              <% } %>
+
 <h1><%= data.title %></h1>
 <article class="article">
     <%= data.body %>

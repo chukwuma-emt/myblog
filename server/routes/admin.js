@@ -6,6 +6,7 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt')
 const  jwt = require('jsonwebtoken');
 const expressEjsLayouts = require('express-ejs-layouts');
+const upload = require('../../middleware/upload')
 
 const adminLayout = 'layouts/admin';
 const jwtSecret = process.env.JWT_SECRET;
@@ -149,25 +150,21 @@ router.get('/add-post', authMiddleware, async (req,res)=> {
 post
 admin dashboard
 */
-router.post('/add-post', authMiddleware, async (req,res)=> {
-    try {
+router.post('/add-post', authMiddleware, upload.single('image'), async (req,res)=> {
+    
 
         try {
             const newsPost = new Post({
                 title: req.body.title,
                 body: req.body.body,
-            })
+                image: req.file ? req.file.filename : null
+            });
 
-            await Post.create(newsPost);
+            await newsPost.save()
             res.redirect('/dashboard');
         } catch (error) {
             console.log(error)
         }
-        
-        res.redirect('/dashboard')
-    } catch (error) {
-        console.log(error)
-    }
    
     });
 
@@ -200,8 +197,7 @@ router.post('/add-post', authMiddleware, async (req,res)=> {
 
 
 
-//put
-    router.put('/edit-post/:id', authMiddleware, async (req,res)=> {
+    router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req,res)=> {
    
 
         try {
@@ -211,6 +207,9 @@ router.post('/add-post', authMiddleware, async (req,res)=> {
             body:req.body.body,
             updatedAt: Date.now()
            })
+           if (req.file){
+            updatedPost.image = req.file.filename
+           }
            res.redirect(`/edit-post/${req.params.id}`)
         } catch (error) {
             console.log(error)

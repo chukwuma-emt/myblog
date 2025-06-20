@@ -15,8 +15,9 @@
         <% data.forEach(post => { %>
          
         <div class="card">
-          
+            
             <a href="/post/<%= post._id %>">
+               <img src="/uploads/<%= post.image %>" alt="post image" >
                 <h2><%= post.title %></h2>
                 <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
             </a>
