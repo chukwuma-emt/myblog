@@ -1,27 +1,24 @@
-<div class="admin-title">
-    <h2>Post</h2>
-    <a href="/add-post" class="button"> + add new</a>
+<div class="post-dashboard-header">
+  <h2 class="dashboard-title">Posts</h2>
+  <a href="/add-post" class="add-post-button">+ Add New</a>
 </div>
 
-
-<div class="admin-posts">
-    <% data.forEach(post => { %>
-    
-    <li>
-        <a href="/post/<%= post._id %>">
-
-            <%= post.title %> &nearr;
+<div class="admin-here">
+<div class="post-list">
+  <% data.forEach(post => { %>
+    <div class="post-item">
+      <div class="post-main">
+        <a href="/post/<%= post._id %>" class="post-title">
+          <%= post.title %> &nearr;
         </a>
-         <div class="admin-post-controls">
-            <a href="/edit-post/<%= post._id %>" class="btn">Edit</a>
-
-            <form class="delete-post" action="/delete-post/<%= post._id %>?_method=DELETE" method="POST">
-                <input type="submit" value="Delete" class="btn-delete btn">
-            </form>
-         </div>
-
+        <div class="post-controls">
+          <a href="/edit-post/<%= post._id %>" class="btn-edit">Edit</a>
+          <form action="/delete-post/<%= post._id %>?_method=DELETE" method="POST" class="form-delete">
+            <input type="submit" value="Delete" class="btn-delete">
+          </form>
         </div>
-
-    <% }) %>
-
-</ul>
+      </div>
+    </div>
+  <% }) %>
+</div>
+</div>
