@@ -203,29 +203,7 @@ form input [type='submit'].btn:hover {
 
 
 
-@media (max-width: 767px) {
-    .articles-cards{
-        flex-direction: column;
-        align-items: center;
-    }
 
-    .card{
-        width: 90%;
-    }
-
-
-
-
-    form {
-        padding: 15px;
-        max-width: 90%;
-    }
-
-    h3{
-        font-size: 1.2rem;
-    }
-
-}
 
 
 
@@ -333,4 +311,181 @@ a:hover{
 .delete {
   background-color: #d9534f;
   color: white;
+}
+
+
+
+
+
+
+
+
+
+/* Admin Dashboard Header */
+.post-dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 1.5rem;
+}
+
+
+
+.dashboard-title {
+  font-size: 1.8rem;
+  color: #333;
+}
+
+.add-post-button {
+  background-color: #007bff;
+  color: white;
+  padding: 8px 16px;
+  text-decoration: none;
+  border-radius: 5px;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.add-post-button:hover {
+  background-color: #0056b3;
+}
+
+/* Posts List */
+.post-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post-item {
+  background-color: #fdfdfd;
+  border: 1px solid #ddd;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 6px;
+  transition: box-shadow 0.2s;
+}
+
+.post-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.post-main {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.post-title {
+  font-size: 1.2rem;
+  color: #333;
+  font-weight: 500;
+  text-decoration: none;
+  flex-grow: 1;
+}
+
+.post-title:hover {
+  color: #007bff;
+}
+
+/* Post Controls */
+.post-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-edit,
+.btn-delete {
+  font-size: 0.9rem;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-edit {
+  background-color: #ffc107;
+  color: white;
+  text-decoration: none;
+  border: none;
+  margin-right: 40px;
+}
+
+.btn-edit:hover {
+  background-color: #e0a800;
+}
+
+.btn-delete {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+}
+
+.btn-delete:hover {
+  background-color: #c82333;
+}
+
+
+
+
+
+
+
+@media (max-width: 767px) {
+    .articles-cards{
+        align-items: center;
+    }
+
+    .card{
+        width: 90%;
+    }
+
+
+
+
+    form {
+        padding: 15px;
+        max-width: 90%;
+    }
+
+    h3{
+        font-size: 1.2rem;
+    }
+
+
+
+
+
+
+
+    .post-main {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .post-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .btn-edit,
+  .btn-delete {
+    width: 100%;
+    text-align: center;
+  }
+
+  .add-post-button {
+    width: 100%;
+    text-align: center;
+  }
+
+  .post-list{
+    flex-direction: column;
+  }
+
 }
