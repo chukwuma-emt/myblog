@@ -59,37 +59,39 @@ router.get('/admin', async (req,res)=>{
 post
 admin check login
 */
-router.post('/admin', async (req,res)=>{
-    try {
-        
-    
-      const { username, password } = req.body;
-    const user = await User.findOne({ username})
+router.post('/admin', async (req, res) => {
+  const { username, password } = req.body;
 
-     if(!user){
-        //return res.status(401).json( { message: 'invalid credential'})
-        return res.redirect('/admin?error=invalid credentials')
-     }
-      const isPasswordValid = await bcrypt.compare(password, user.password)
+  // ✅ Hardcoded owner login
+  const ownerUsername = 'owner';
+  const ownerPassword = 'supersecret123'; // You can change this
 
-      if(!isPasswordValid) {
-        return res.redirect('/admin?error=invalid credentials')
-        //return res.status(401).json( { message: 'invalid credential'})
-      }
+  if (username === ownerUsername && password === ownerPassword) {
+    const token = jwt.sign({ role: 'owner' }, jwtSecret);
+    res.cookie('token', token, { httpOnly: true });
+    return res.redirect('/owner');
+  }
 
-      const token = jwt.sign({userId: user._id}, jwtSecret )
-      res.cookie('token', token, { httpOnly: true});
+  try {
+    const user = await User.findOne({ username });
+    if (!user) return res.redirect('/admin?error=Invalid credentials');
 
-      
-      return res.redirect('/dashboard')
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) return res.redirect('/admin?error=Invalid credentials');
 
+    const token = jwt.sign({ userId: user._id, role: user.role }, jwtSecret);
+    res.cookie('token', token, { httpOnly: true });
 
-    } catch (error) {
-        console.log(error)
-        return res.redirect('/admin?error=an error occurred')
+    if (user.role === 'restricted') {
+      return res.redirect('/admin?error=Access restricted');
     }
-        
-    });
+
+    res.redirect('/dashboard');
+  } catch (error) {
+    console.log(error);
+    res.redirect('/admin?error=Something went wrong');
+  }
+});
 
 /*
 post

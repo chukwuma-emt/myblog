@@ -1,0 +1,41 @@
+<h2>Owner Dashboard</h2>
+
+<h3>Register</h3>
+<form action="/register" method="POST">
+
+<label for="username"><b>Username</b></label>
+<input type="text" placeholder="Enter Username" name="username">
+
+<label for="password"><b>Password</b></label>
+<input type="text" placeholder="Enter Password" name="password">
+
+<input type="submit" value="register" class="btn">
+
+</form>
+
+<!-- User List -->
+<div class="user-list">
+  <% users.forEach(user => { %>
+    <div class="user-card">
+      <div class="user-info">
+        <strong><%= user.username %></strong>
+        <small><%= user.role %></small>
+      </div>
+
+      <div class="user-actions">
+        <% if (user.role === 'user') { %>
+          <form action="/owner/restrict/<%= user._id %>" method="POST">
+            <button class="restrict">Restrict</button>
+          </form>
+        <% } else { %>
+          <form action="/owner/unrestrict/<%= user._id %>" method="POST">
+            <button class="unrestrict">Unrestrict</button>
+          </form>
+        <% } %>
+        <form action="/owner/delete/<%= user._id %>" method="POST">
+          <button class="delete">Delete</button>
+        </form>
+      </div>
+    </div>
+  <% }) %>
+</div>

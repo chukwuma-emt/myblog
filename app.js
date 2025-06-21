@@ -46,8 +46,14 @@ app.set('view engine', 'ejs')
 
 app.locals.isActiveRoute = isActiveRoute
 
+app.use((req, res, next)=> {
+    res.locals.currentRoute = req.path;
+    next();
+})
+
 app.use('/', require('./server/routes/main'))
 app.use('/', require('./server/routes/admin'))
+app.use('/', require('./server/routes/owner'))
 
 app.listen(PORT, ()=> {
     console.log(`App listening on port ${PORT}`);
