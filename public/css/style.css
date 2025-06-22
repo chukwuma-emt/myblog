@@ -499,4 +499,8 @@ a:hover{
     flex-direction: column;
   }
 
+  .form-delete{
+    margin-right: 10px;
+  }
+
 }
