@@ -32,10 +32,16 @@
             <button class="unrestrict">Unrestrict</button>
           </form>
         <% } %>
-        <form action="/owner/delete/<%= user._id %>" method="POST">
+        <form action="/owner/delete/<%= user._id %>" method="POST"onsubmit="return confirmDelete()" >
           <button class="delete">Delete</button>
         </form>
       </div>
     </div>
   <% }) %>
 </div>
+
+<script>
+    function confirmDelete() {
+        return confirm ('are you sure you want to delete this post')
+        }
+</script>
