@@ -97,6 +97,8 @@ ul{
     height: auto;
     border-radius: 8px;
     float: left;
+    margin-right: 20px;
+    margin-bottom: 20px;
 }
 
 .card:hover{
