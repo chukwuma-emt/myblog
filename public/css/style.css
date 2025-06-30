@@ -577,5 +577,8 @@ a:hover{
     max-height: 300px;
   }
 
+  .searchBtn{
+    margin-right: 40px;
+  }
 
 }
