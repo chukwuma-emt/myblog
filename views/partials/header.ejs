@@ -11,24 +11,38 @@
             <a href="/about" class="<%= isActiveRoute('/about', currentRoute) %>">About</a>
         </li> <li>
             <a href="/contact" class="<%= isActiveRoute('/contact', currentRoute) %>">contact</a>
-        </li><li>
+        </li> <li>
             <a href="/admin" class="<%= isActiveRoute('/admin', currentRoute) %>">Sign In</a>
         </li>
+    
     </ul>
+
+
+    
 
 </nav>
 
-<div class="header__button">
-    <button class="searchBtn" aria-expanded="false">
-        Search
-       
-    </button>
+
+            
+
+
+    <div>
+      <form action="/search" class="search--form" method="POST" role="search">
+        <input
+         type="text"
+         aria-label="search"
+         id="searchInput"
+         name="searchTerm"
+         placeholder="Search the site...">
+      </form>
+    </div>
+
+ 
 
     <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">
-   &#9776;
-</button>
+      &#9776;
+    </button>
 
-</div>
 
 </header>
 
