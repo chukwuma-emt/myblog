@@ -1,49 +1,19 @@
-<header class="header">
-<a href="/" class="header__logo">EM_INNOVATIONS</a>
+<header class="site-header">
+  <div class="header-container">
+    <a href="/" class="logo">EM_INNOVATIONS</a>
 
+    <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">&#9776;</button>
 
-
-<nav class="header__nav" id="navMenu">
-    <ul>
-        <li>
-            <a href="/" class="<%= isActiveRoute('/', currentRoute) %>">Home</a>
-        </li> <li>
-            <a href="/about" class="<%= isActiveRoute('/about', currentRoute) %>">About</a>
-        </li> <li>
-            <a href="/contact" class="<%= isActiveRoute('/contact', currentRoute) %>">contact</a>
-        </li> <li>
-            <a href="/admin" class="<%= isActiveRoute('/admin', currentRoute) %>">Sign In</a>
-        </li>
-
-    
-    </ul>
-
-
-    
-
-</nav>
-
-
-            
-
-           <div>
-      <form action="/search" class="search--form" method="POST" role="search">
-        <input
-         type="text"
-         aria-label="search"
-         id="searchInput"
-         name="searchTerm"
-         placeholder="Search...">
+    <nav class="nav" id="navMenu">
+      <ul class="nav-links">
+        <li><a href="/" class="<%= isActiveRoute('/', currentRoute) %>">Home</a></li>
+        <li><a href="/about" class="<%= isActiveRoute('/about', currentRoute) %>">About</a></li>
+        <li><a href="/contact" class="<%= isActiveRoute('/contact', currentRoute) %>">Contact</a></li>
+        <li><a href="/admin" class="<%= isActiveRoute('/admin', currentRoute) %>">Sign In</a></li>
+      </ul>
+      <form action="/search" method="POST" role="search" class="search-form">
+        <input type="text" name="searchTerm" id="searchInput" placeholder="Search..." aria-label="Search">
       </form>
-    </div>
-
-
- 
-
-    <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">
-      &#9776;
-    </button>
-
-
+    </nav>
+  </div>
 </header>
-
