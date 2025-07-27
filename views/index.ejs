@@ -1,35 +1,42 @@
 <div class="auther">
-    <h1 class="auther__heading"> Hi I am Chukwuma</h1>
-    <p class="auther__body">web developer and computer scientist.</p>
-    
+  <h1 class="auther__heading">Hi, I am Chukwuma</h1>
+  <p class="auther__body">Web developer and computer scientist.</p>
 </div>
 
-<div class="my-img"><img src="/img/chukwuma.jpg" alt="person looking out through window" class="hero-image" width="981" height="528">
+<div class="my-img">
+  <img src="/img/chukwuma.jpg" alt="person looking out through window" class="hero-image" width="981" height="528">
 </div>
 
 <section class="articles">
-    <h2 class="articles__heading"> Latest Post</h2>
+  <h2 class="articles__heading">Latest Posts</h2>
 
-    <div class="articles-cards">
+  <div class="articles-cards">
 
-        <% data.forEach(post => { %>
-         
-        <div class="card">
-            
-            <a href="/post/<%= post._id %>">
-               <img src="/uploads/<%= post.image %>" alt="post image" >
-                <h2><%= post.title %></h2>
-                <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
-            </a>
-        
-        </div>
-        <% }) %>
-    </div>
+    <% data.forEach(post => { %>
+      <div class="card">
+        <a href="/post/<%= post.slug %>">
+          <% if (post.image) { %>
+            <img src="/uploads/<%= post.image %>" alt="post image">
+          <% } else { %>
+            <img src="/img/default-post.jpg" alt="default image">
+          <% } %>
 
-    <% if (nextPage !== null) { %>
-     <a href="/?page=<%= nextPage %>" class="pagination">&lt; View Older Posts</a>
-    <% } %>
+          <h2><%= post.title %></h2>
+          <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
 
-    
+          <!-- ✅ Views & Likes -->
+          <div class="post-meta">
+            <small>👁️ <%= post.views || 0 %> views</small> &nbsp;
+            <small>❤️ <%= post.likes || 0 %> likes</small>
+          </div>
+        </a>
+      </div>
+    <% }) %>
+
+  </div>
+
+  <% if (nextPage !== null) { %>
+    <a href="/?page=<%= nextPage %>" class="pagination">&lt; View Older Posts</a>
+  <% } %>
 
 </section>

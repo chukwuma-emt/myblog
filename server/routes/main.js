@@ -1,160 +1,160 @@
-const express = require('express')
-const router = express.Router()
+const express = require('express');
+const router = express.Router();
 const Post = require('../models/Post');
+const Comment = require('../models/Comment');
 
-//routes
-router.get('', async (req,res)=>{
-try {
+// Homepage with pagination
+router.get('/', async (req, res) => {
+  try {
     const locals = {
-        title: "nodejs blog",
-        description: "simple blog created with nodejs , express and mongodb"
-    }
+      title: "Node.js Blog",
+      description: "Simple blog created with Node.js, Express, and MongoDB"
+    };
 
-    let perPage = 10;
-    let page = req.query.page || 1;
+    const perPage = 10;
+    const page = Math.max(parseInt(req.query.page) || 1, 1); // Ensure page is at least 1
 
-    const data = await Post.aggregate([{$sort: { createdAt: -1}}])
-    .skip(perPage * page - perPage)
-    .limit(perPage)
-    .exec();
+    const data = await Post.aggregate([{ $sort: { createdAt: -1 } }])
+      .skip(perPage * (page - 1))
+      .limit(perPage);
 
     const count = await Post.countDocuments();
-    const nextPage = parseInt(page) + 1;
-    const hasNextPage = nextPage <= Math.ceil(count /perPage);
+    const hasNextPage = page < Math.ceil(count / perPage);
 
-    
-    res.render('index',{
-         locals,
-         data,
-         current: page,
-         nextPage: hasNextPage ? nextPage : null,
-         currentRoute: '/'
-        });
-} catch (error) {
-    console.log(error)
-}
-    
+    res.render('index', {
+      locals,
+      data,
+      current: page,
+      nextPage: hasNextPage ? page + 1 : null,
+      currentRoute: '/'
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
 });
- 
-/*
-router.get('', async (req,res)=>{
+
+// View single post with comments, views and likes
+router.get('/post/:slug', async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const post = await Post.findOne({ slug });
+    if (!post) return res.status(404).send("Post not found");
+
+    // View counter (session-based)
+    if (!req.session.viewedPosts) req.session.viewedPosts = [];
+    if (!req.session.viewedPosts.includes(post._id.toString())) {
+      await Post.findByIdAndUpdate(post._id, { $inc: { views: 1 } });
+      req.session.viewedPosts.push(post._id.toString());
+    }
+
+    // Get related comments
+    const comments = await Comment.find({ postId: post._id }).sort({ createdAt: -1 });
+
+    // Dynamic SEO-friendly title & description
     const locals = {
-        title: "nodejs blog",
-        description: "simple blog created with nodejs , express and mongodb"
-    }
-    
-    try {
-        const data = await Post.find();
-        res.render('index',{ locals, data});
-    } catch (error) {
-        console.log(error)
-    }
-        
+      title: post.title,
+      description: post.body.length > 150 
+        ? post.body.replace(/(<([^>]+)>)/gi, '').substring(0, 150) + '...' 
+        : post.body
+    };
+
+    res.render('post', {
+      locals,
+      data: post,
+      comments,
+      currentRoute: `/post/${slug}`
     });
-*/
-/*function insertPostData () {
-    Post.insertMany([
-        {
-            title: "building a blog 1",
-            body: "this is the body text",
-        },
-        {
-            title: "building a blog 2",
-            body: "this is the body text",
-        },
-        {
-            title: "building a blog 3",
-            body: "this is the body text",
-        },
-        {
-            title: "building a blog 4",
-            body: "this is the body text",
-        },
-        {
-            title: "building a blog 5",
-            body: "this is the body text",
-        },
-    ])
-}
-insertPostData();
-
-
-
-/*
-get
-post: id
-*/
-router.get('/post/:id', async (req,res)=>{
-    try {
-
-      
-        let slug = req.params.id;
-
-        const data = await Post.findById({ _id:slug});
-
-        const locals = {
-            title: data.title,
-            description: "simple blog created with nodejs , express and mongodb",
-            
-
-        }
-
-
-        res.render('post', { locals, data, currentRoute: `/post/${slug}`});
-    } catch (error) {
-        console.log(error)
-    }
-        
-    });
-
-
- /*
-post
-post: searchterm
-*/
-router.post('/search', async (req,res)=>{
-    try {
-const locals = {
-        title: "search",
-        description: "simple blog created with nodejs , express and mongodb"
-    }
-      let searchTerm = req.body.searchTerm;
-      const searchNoSpacialChar = searchTerm.replace(/[^a-zA-Z0-9]/g, "")
-     
-        const data = await Post.find({
-            $or: [
-                { title: { $regex: new RegExp(searchNoSpacialChar, 'i')}},
-                { body: { $regex: new RegExp(searchNoSpacialChar, 'i')}},
-            ]
-        });
-
-        res.render("search", {
-            data,
-            locals,
-            currentRoute: `${searchTerm}`
-        });
-    } catch (error) {
-        console.log(error)
-    }
-        
-    });
-
-
-
-
-router.get('/about',  (req,res)=> {
-    res.render('about', {
-         currentRoute: '/about'
-    })
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error");
+  }
 });
 
-router.get('/contact', (req,res)=>{
- res.render('contact',
-    {
-        currentRoute: '/contact'
-   }
- );
+// Like a post (AJAX)
+router.post('/like/:id', async (req, res) => {
+  try {
+    const postId = req.params.id;
+
+    if (!req.session.likedPosts) req.session.likedPosts = [];
+
+    if (req.session.likedPosts.includes(postId)) {
+      return res.status(400).json({ success: false, message: 'Already liked' });
+    }
+
+    const post = await Post.findByIdAndUpdate(postId, { $inc: { likes: 1 } }, { new: true });
+    if (!post) return res.status(404).json({ success: false, message: 'Post not found' });
+
+    req.session.likedPosts.push(postId);
+
+    res.json({ success: true, likes: post.likes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// Submit a comment (AJAX)
+router.post('/add', async (req, res) => {
+  try {
+    const { postId, username, text } = req.body;
+
+    if (!postId || !username || !text || !username.trim() || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    }
+
+    const comment = new Comment({ postId, username: username.trim(), text: text.trim() });
+    await comment.save();
+    res.status(200).json({ success: true, comment });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ success: false });
+  }
+});
+
+// Search route
+router.post('/search', async (req, res) => {
+  try {
+    const searchTerm = req.body.searchTerm || '';
+    const searchClean = searchTerm.replace(/[^a-zA-Z0-9 ]/g, "");
+
+    const data = await Post.find({
+      $or: [
+        { title: { $regex: new RegExp(searchClean, 'i') } },
+        { body: { $regex: new RegExp(searchClean, 'i') } }
+      ]
+    });
+
+    const locals = {
+      title: "Search",
+      description: "Search results"
+    };
+
+    res.render('search', {
+      data,
+      locals,
+      currentRoute: '/search'
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Search error");
+  }
+});
+
+// Static pages
+router.get('/about', (req, res) => {
+  res.render('about', { currentRoute: '/about' });
+});
+
+router.get('/contact', (req, res) => {
+  res.render('contact', { currentRoute: '/contact' });
 });
 
 
-module.exports = router
+
+
+
+
+
+
+module.exports = router;

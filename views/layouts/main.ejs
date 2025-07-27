@@ -1,35 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= locals.title %></title>
-    <meta name="description" content="<%= locals.description %>">
-    <link rel="stylesheet" href="/css/style.css">
-    <script type="text/javascript" defer src="/js/script.js"></script>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Page Title -->
+  <title><%= locals.title || 'My Blog' %></title>
+
+  <!-- Basic SEO Meta -->
+  <meta name="description" content="<%= locals.description || 'Welcome to my blog where I share insights on tech, development, and more.' %>">
+  <meta name="keywords" content="<%= locals.keywords || 'blog, tech, coding, development' %>">
+  <link rel="canonical" href="<%= locals.canonicalUrl || 'https://yourdomain.com' %>">
+
+  <!-- Open Graph / Facebook / WhatsApp -->
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="<%= locals.ogTitle || locals.title || 'My Blog' %>">
+  <meta property="og:description" content="<%= locals.ogDescription || locals.description || 'Check out this blog post' %>">
+  <meta property="og:image" content="<%= locals.ogImage || '/img/default-post.jpg' %>">
+  <meta property="og:url" content="<%= locals.ogUrl || 'https://yourdomain.com' %>">
+
+  <!-- Styles and Scripts -->
+  <link rel="stylesheet" href="/css/style.css">
+  <script type="text/javascript" defer src="/js/script.js"></script>
 </head>
 <body>
-    
-   <div class="container">
+
+  <div class="container">
     <%- include('../partials/header.ejs') %>
     <%- include('../partials/search.ejs') %>
+
     <main class="main"> 
-        <%- body %>
+      <%- body %>
     </main>
-   
-   <%- include('../partials/footer.ejs') %>
 
-   </div>
-   
-   <script>
-    const menuToggle = document.getElementById('menuToggle')
-    const navMenu = document.getElementById('navMenu')
+    <%- include('../partials/footer.ejs') %>
+  </div>
 
-    menuToggle.addEventListener('click', ()=> {
-        navMenu.classList.toggle('open')
-    })
-   </script>
+  <script>
+    const menuToggle = document.getElementById('menuToggle');
+    const navMenu = document.getElementById('navMenu');
+
+    menuToggle.addEventListener('click', () => {
+      navMenu.classList.toggle('open');
+    });
+  </script>
+
+  <script src="/js/post-actions.js" defer></script>
 
 </body>
 </html>

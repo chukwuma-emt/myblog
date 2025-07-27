@@ -1,9 +1,49 @@
- <% if (data.image) { %>
-              <img src="/uploads/<%= data.image %>" alt="post image" style="max-width: 400px; height: auto;" > 
-              <% } %>
+<% if (data.image) { %>
+  <img src="/uploads/<%= data.image %>" alt="post image" style="max-width: 100%; height: auto; border-radius: 8px;">
+<% } %>
 
 <h1><%= data.title %></h1>
-<article class="article">
-    <%= data.body %>
 
+<!-- ✅ Optional: Show slug and date -->
+<p>
+  <small><strong>Slug:</strong> <%= data.slug %></small><br>
+  <small><strong>Date:</strong> <%= new Date(data.createdAt).toLocaleString() %></small>
+</p>
+
+<!-- ✅ Post Meta: Views and Likes -->
+<p>
+  <strong>Views:</strong> <%= data.views || 0 %> &nbsp;|&nbsp;
+  <strong>Likes:</strong> <span id="likeCount"><%= data.likes || 0 %></span>
+  <button id="likeBtn" data-postid="<%= data._id %>">❤️ Like</button>
+</p>
+
+<article class="article" style="line-height: 1.7;">
+  <%= data.body %>
 </article>
+
+<!-- ✅ Back to Blog List -->
+<p><a href="/posts">← Back to Blog List</a></p>
+
+<!-- ✅ Comments Section -->
+<section class="comments-section" style="margin-top: 40px;">
+  <h3>Comments</h3>
+
+  <div id="commentList">
+    <% if (comments.length === 0) { %>
+      <p>No comments yet. Be the first to comment!</p>
+    <% } else { %>
+      <% comments.forEach(comment => { %>
+        <div class="comment" style="border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 5px;">
+          <strong><%= comment.username %>:</strong> <%= comment.text %>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+
+  <form id="commentForm" style="margin-top: 20px;">
+    <input type="hidden" id="postId" name="postId" value="<%= data._id %>">
+    <input type="text" id="username" name="username" placeholder="Your name" required style="display: block; margin-bottom: 10px; width: 100%;">
+    <textarea id="commentText" name="text" placeholder="Write a comment..." required style="width: 100%; margin-bottom: 10px;"></textarea>
+    <button type="submit">Post Comment</button>
+  </form>
+</section>
