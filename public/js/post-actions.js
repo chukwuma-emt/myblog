@@ -51,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const data = await res.json();
         if (data.success) {
-          // append new comment
           const newComment = document.createElement('div');
           newComment.className = 'comment';
           newComment.innerHTML = `<strong>${data.comment.username}:</strong> ${data.comment.text}`;
@@ -65,5 +64,19 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Error posting comment');
       }
     });
+  }
+
+  // —————————————————————————
+  // MOBILE MENU TOGGLE
+  // —————————————————————————
+  const menuToggle = document.getElementById('menuToggle');
+  const navMenu = document.getElementById('navMenu');
+
+  if (menuToggle && navMenu) {
+    menuToggle.addEventListener('click', () => {
+      navMenu.classList.toggle('open');
+    });
+  } else {
+    console.warn('menuToggle or navMenu not found');
   }
 });

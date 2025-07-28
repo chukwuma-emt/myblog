@@ -72,6 +72,13 @@ router.post('/admin', async (req, res) => {
   }
 });
 
+
+
+// Register Logic (POST)
+
+
+
+
 // Dashboard
 router.get('/dashboard', authMiddleware, async (req, res) => {
   try {
@@ -194,10 +201,42 @@ router.delete('/delete-post/:id', authMiddleware, async (req, res) => {
   }
 });
 
+
+
+router.post('/register', async (req,res)=>{
+    try {
+        
+    const { username, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    try {
+        const user = await User.create({ username, password: hashedPassword})
+        return res.redirect('/admin?error=account created!!! please login here')
+        //res.status(201).json({ message: 'User Created', user})
+    } catch (error) {
+        if(error.code === 11000){
+            return res.redirect('/admin?error=this User already in exist! login or create new account')
+            //res.status(409).json({ message: 'User already in user'})
+        }
+        res.status(500).json({ message: 'internal server error'})
+    }
+
+    } catch (error) {
+        console.log(error)
+    }
+        
+    });
+
+
 // Logout
 router.get('/logout', (req, res) => {
   res.clearCookie('token');
   res.redirect('/admin');
 });
+
+
+
+
+
 
 module.exports = router;
