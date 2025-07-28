@@ -71,6 +71,7 @@ router.get('/post/:slug', async (req, res) => {
   }
 });
 
+
 // Like a post (AJAX)
 router.post('/like/:id', async (req, res) => {
   try {
