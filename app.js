@@ -60,6 +60,9 @@ app.use((req, res, next) => {
 app.use('/', require('./server/routes/main'));
 app.use('/', require('./server/routes/admin'));
 app.use('/', require('./server/routes/owner'));
+const sitemapRoutes = require('./server/routes/sitemap');
+app.use('/', sitemapRoutes);
+
 
 // Server
 app.listen(PORT, () => {
