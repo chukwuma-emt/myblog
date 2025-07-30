@@ -10,41 +10,38 @@ const slugify = require('slugify');
 const adminLayout = 'layouts/admin';
 const jwtSecret = process.env.JWT_SECRET;
 
-// Middleware to check login
+// Auth middleware
 const authMiddleware = (req, res, next) => {
   const token = req.cookies.token;
-  if (!token) return res.status(401).json({ message: 'unauthorized' });
+  if (!token) return res.status(401).json({ message: 'Unauthorized' });
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    req.userId = decoded.id;
+    req.userId = decoded.userId || null;
+    req.role = decoded.role;
     next();
-  } catch (error) {
-    return res.status(401).json({ message: 'unauthorized' });
+  } catch (err) {
+    return res.status(401).json({ message: 'Unauthorized' });
   }
 };
 
-// Admin login page
-router.get('/admin', async (req, res) => {
-  try {
-    const locals = {
-      title: "Admin",
-      description: "simple blog created with nodejs , express and mongodb",
-      error: req.query.error
-    };
-    res.render('admin/index', { locals, layout: adminLayout, currentRoute: req.path });
-  } catch (error) {
-    console.log(error);
-  }
+// GET: Admin login page
+router.get('/admin', (req, res) => {
+  const locals = {
+    title: "Admin Login",
+    description: "Simple blog created with Node.js, Express, and MongoDB",
+    error: req.query.error
+  };
+  res.render('admin/index', { locals, layout: adminLayout, currentRoute: req.path });
 });
 
-// Admin login logic
+// POST: Admin login logic
 router.post('/admin', async (req, res) => {
   const { username, password } = req.body;
 
+  // Super admin shortcut
   const ownerUsername = 'owner';
   const ownerPassword = 'supersecret123';
-
   if (username === ownerUsername && password === ownerPassword) {
     const token = jwt.sign({ role: 'owner' }, jwtSecret);
     res.cookie('token', token, { httpOnly: true });
@@ -55,67 +52,78 @@ router.post('/admin', async (req, res) => {
     const user = await User.findOne({ username });
     if (!user) return res.redirect('/admin?error=Invalid credentials');
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) return res.redirect('/admin?error=Invalid credentials');
-
-    const token = jwt.sign({ userId: user._id, role: user.role }, jwtSecret);
-    res.cookie('token', token, { httpOnly: true });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.redirect('/admin?error=Invalid credentials');
 
     if (user.role === 'restricted') {
       return res.redirect('/admin?error=Access restricted');
     }
 
+    const token = jwt.sign({ userId: user._id, role: user.role }, jwtSecret);
+    res.cookie('token', token, { httpOnly: true });
     res.redirect('/dashboard');
-  } catch (error) {
-    console.log(error);
-    res.redirect('/admin?error=Something went wrong');
+  } catch (err) {
+    console.error(err);
+    res.redirect('/admin?error=Login error');
   }
 });
 
+// POST: Register user
+router.post('/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
 
+    try {
+      await User.create({ username, password: hashedPassword });
+      return res.redirect('/admin?error=Account created! Please login.');
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.redirect('/admin?error=User already exists. Try logging in.');
+      }
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  } catch (err) {
+    console.error(err);
+    res.redirect('/admin?error=Registration failed');
+  }
+});
 
-// Register Logic (POST)
-
-
-
-
-// Dashboard
+// GET: Dashboard
 router.get('/dashboard', authMiddleware, async (req, res) => {
   try {
     const locals = {
       title: 'Dashboard',
-      description: 'simple blog created with nodejs, express and mongodb'
+      description: 'Blog Admin Dashboard'
     };
-    const data = await Post.find();
+    const data = await Post.find().sort({ createdAt: -1 });
+
     res.render('admin/dashboard', {
       locals,
       data,
       layout: adminLayout,
       currentRoute: req.path
     });
-  } catch (error) {
-    console.log(error);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Dashboard error');
   }
 });
 
-// Add Post (GET)
-router.get('/add-post', authMiddleware, async (req, res) => {
-  try {
-    const locals = {
-      title: 'Add Post',
-      description: 'simple blog created with nodejs, express and mongodb'
-    };
-    res.render('admin/add-post', {
-      locals,
-      layout: adminLayout,
-      currentRoute: req.path
-    });
-  } catch (error) {
-    console.log(error);
-  }
+// GET: Add Post
+router.get('/add-post', authMiddleware, (req, res) => {
+  const locals = {
+    title: 'Add Post',
+    description: 'Create a new blog post'
+  };
+  res.render('admin/add-post', {
+    locals,
+    layout: adminLayout,
+    currentRoute: req.path
+  });
 });
 
-// Add Post (POST)
+// POST: Add Post
 router.post('/add-post', authMiddleware, upload.single('image'), async (req, res) => {
   try {
     const { title, body } = req.body;
@@ -124,40 +132,40 @@ router.post('/add-post', authMiddleware, upload.single('image'), async (req, res
     let baseSlug = slugify(title, { lower: true, strict: true });
     let slug = baseSlug;
     let counter = 1;
-
     while (await Post.findOne({ slug })) {
       slug = `${baseSlug}-${counter++}`;
     }
 
-    const newPost = new Post({ title, body, image, slug });
-    await newPost.save();
+    const post = new Post({ title, body, image, slug });
+    await post.save();
     res.redirect(`/post/${slug}`);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send('Error creating post');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Post creation error');
   }
 });
 
-// Edit Post (GET)
+// GET: Edit Post
 router.get('/edit-post/:id', authMiddleware, async (req, res) => {
   try {
+    const post = await Post.findById(req.params.id);
     const locals = {
       title: 'Edit Post',
-      description: 'simple blog created with nodejs, express and mongodb'
+      description: 'Edit your blog post'
     };
-    const data = await Post.findOne({ _id: req.params.id });
     res.render('admin/edit-post', {
       locals,
-      data,
+      data: post,
       layout: adminLayout,
       currentRoute: req.path
     });
-  } catch (error) {
-    console.log(error);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Edit page error');
   }
 });
 
-// Edit Post (PUT)
+// PUT: Edit Post
 router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req, res) => {
   try {
     const { title, body } = req.body;
@@ -166,7 +174,6 @@ router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req,
     let baseSlug = slugify(title, { lower: true, strict: true });
     let slug = baseSlug;
     let counter = 1;
-
     while (await Post.findOne({ slug, _id: { $ne: req.params.id } })) {
       slug = `${baseSlug}-${counter++}`;
     }
@@ -178,65 +185,31 @@ router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req,
       updatedAt: Date.now()
     };
 
-    if (image) {
-      updatedPost.image = image;
-    }
+    if (image) updatedPost.image = image;
 
     await Post.findByIdAndUpdate(req.params.id, updatedPost);
     res.redirect(`/edit-post/${req.params.id}`);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send('Error updating post');
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Update error');
   }
 });
 
-
-// Delete Post
+// DELETE: Delete Post
 router.delete('/delete-post/:id', authMiddleware, async (req, res) => {
   try {
-    await Post.deleteOne({ _id: req.params.id });
+    await Post.findByIdAndDelete(req.params.id);
     res.redirect('/dashboard');
-  } catch (error) {
-    console.log(error);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Delete error');
   }
 });
 
-
-
-router.post('/register', async (req,res)=>{
-    try {
-        
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    try {
-        const user = await User.create({ username, password: hashedPassword})
-        return res.redirect('/admin?error=account created!!! please login here')
-        //res.status(201).json({ message: 'User Created', user})
-    } catch (error) {
-        if(error.code === 11000){
-            return res.redirect('/admin?error=this User already in exist! login or create new account')
-            //res.status(409).json({ message: 'User already in user'})
-        }
-        res.status(500).json({ message: 'internal server error'})
-    }
-
-    } catch (error) {
-        console.log(error)
-    }
-        
-    });
-
-
-// Logout
+// GET: Logout
 router.get('/logout', (req, res) => {
   res.clearCookie('token');
   res.redirect('/admin');
 });
-
-
-
-
-
 
 module.exports = router;

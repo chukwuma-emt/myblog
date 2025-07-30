@@ -1,13 +1,15 @@
-// public/js/post-actions.js
 document.addEventListener('DOMContentLoaded', () => {
-  // —————————————————————————
-  // LIKE BUTTON
-  // —————————————————————————
   const likeBtn = document.getElementById('likeBtn');
   const likeCount = document.getElementById('likeCount');
 
+  // Prevent double click spamming
   if (likeBtn && likeCount) {
+    let liked = false;
+
     likeBtn.addEventListener('click', async () => {
+      if (liked) return;
+      liked = true;
+
       const postId = likeBtn.dataset.postid;
       try {
         const res = await fetch(`/like/${postId}`, { method: 'POST' });
@@ -17,16 +19,16 @@ document.addEventListener('DOMContentLoaded', () => {
           likeBtn.disabled = true;
         } else {
           alert(data.message || 'Error liking post');
+          liked = false; // Allow retry
         }
       } catch (err) {
         console.error('Like error:', err);
+        liked = false;
       }
     });
   }
 
-  // —————————————————————————
   // COMMENT FORM
-  // —————————————————————————
   const commentForm = document.getElementById('commentForm');
   const commentList = document.getElementById('commentList');
 
@@ -34,9 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
     commentForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const postId   = document.getElementById('postId').value;
+      const postId = document.getElementById('postId').value;
       const username = document.getElementById('username').value.trim();
-      const text     = document.getElementById('commentText').value.trim();
+      const text = document.getElementById('commentText').value.trim();
 
       if (!username || !text) {
         return alert('Please fill in both fields.');
@@ -50,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         const data = await res.json();
-        if (data.success) {
+        if (data.success && data.comment) {
           const newComment = document.createElement('div');
           newComment.className = 'comment';
           newComment.innerHTML = `<strong>${data.comment.username}:</strong> ${data.comment.text}`;
@@ -66,17 +68,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // —————————————————————————
-  // MOBILE MENU TOGGLE
-  // —————————————————————————
-  const menuToggle = document.getElementById('menuToggle');
-  const navMenu = document.getElementById('navMenu');
-
-  if (menuToggle && navMenu) {
-    menuToggle.addEventListener('click', () => {
-      navMenu.classList.toggle('open');
-    });
-  } else {
-    console.warn('menuToggle or navMenu not found');
-  }
+  
 });

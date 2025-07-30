@@ -12,9 +12,9 @@ router.get('/', async (req, res) => {
     };
 
     const perPage = 10;
-    const page = Math.max(parseInt(req.query.page) || 1, 1); // Ensure page is at least 1
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
 
-    const data = await Post.aggregate([{ $sort: { createdAt: -1 } }])
+    const posts = await Post.aggregate([{ $sort: { createdAt: -1 } }])
       .skip(perPage * (page - 1))
       .limit(perPage);
 
@@ -23,40 +23,39 @@ router.get('/', async (req, res) => {
 
     res.render('index', {
       locals,
-      data,
+      data: posts,
       current: page,
       nextPage: hasNextPage ? page + 1 : null,
       currentRoute: '/'
     });
   } catch (error) {
-    console.error(error);
+    console.error('Homepage error:', error);
     res.status(500).send('Internal Server Error');
   }
 });
 
-// View single post with comments, views and likes
+// View single post with comments, views, and likes
 router.get('/post/:slug', async (req, res) => {
   try {
     const slug = req.params.slug;
     const post = await Post.findOne({ slug });
     if (!post) return res.status(404).send("Post not found");
 
-    // View counter (session-based)
+    // Count views (session-based)
     if (!req.session.viewedPosts) req.session.viewedPosts = [];
     if (!req.session.viewedPosts.includes(post._id.toString())) {
       await Post.findByIdAndUpdate(post._id, { $inc: { views: 1 } });
       req.session.viewedPosts.push(post._id.toString());
     }
 
-    // Get related comments
+    // Load comments
     const comments = await Comment.find({ postId: post._id }).sort({ createdAt: -1 });
 
-    // Dynamic SEO-friendly title & description
+    // Dynamic SEO-friendly metadata
+    const plainText = post.body.replace(/(<([^>]+)>)/gi, '');
     const locals = {
       title: post.title,
-      description: post.body.length > 150 
-        ? post.body.replace(/(<([^>]+)>)/gi, '').substring(0, 150) + '...' 
-        : post.body
+      description: plainText.length > 150 ? plainText.substring(0, 150) + '...' : plainText
     };
 
     res.render('post', {
@@ -66,13 +65,12 @@ router.get('/post/:slug', async (req, res) => {
       currentRoute: `/post/${slug}`
     });
   } catch (error) {
-    console.error(error);
+    console.error('Post view error:', error);
     res.status(500).send("Server Error");
   }
 });
 
-
-// Like a post (AJAX)
+// Like a post
 router.post('/like/:id', async (req, res) => {
   try {
     const postId = req.params.id;
@@ -90,12 +88,12 @@ router.post('/like/:id', async (req, res) => {
 
     res.json({ success: true, likes: post.likes });
   } catch (err) {
-    console.error(err);
+    console.error('Like error:', err);
     res.status(500).json({ success: false });
   }
 });
 
-// Submit a comment (AJAX)
+// Submit a comment
 router.post('/add', async (req, res) => {
   try {
     const { postId, username, text } = req.body;
@@ -104,58 +102,69 @@ router.post('/add', async (req, res) => {
       return res.status(400).json({ success: false, message: 'All fields are required.' });
     }
 
-    const comment = new Comment({ postId, username: username.trim(), text: text.trim() });
+    const comment = new Comment({
+      postId,
+      username: username.trim(),
+      text: text.trim()
+    });
+
     await comment.save();
     res.status(200).json({ success: true, comment });
   } catch (err) {
-    console.log(err);
+    console.error('Comment error:', err);
     res.status(500).json({ success: false });
   }
 });
 
-// Search route
+// Search posts
 router.post('/search', async (req, res) => {
   try {
-    const searchTerm = req.body.searchTerm || '';
-    const searchClean = searchTerm.replace(/[^a-zA-Z0-9 ]/g, "");
+    const rawSearch = req.body.searchTerm || '';
+    const searchTerm = rawSearch.replace(/[^a-zA-Z0-9 ]/g, "").trim();
+
+    if (!searchTerm) {
+      return res.render('search', {
+        data: [],
+        locals: {
+          title: "Search",
+          description: "Search results"
+        },
+        currentRoute: '/search'
+      });
+    }
 
     const data = await Post.find({
       $or: [
-        { title: { $regex: new RegExp(searchClean, 'i') } },
-        { body: { $regex: new RegExp(searchClean, 'i') } }
+        { title: new RegExp(searchTerm, 'i') },
+        { body: new RegExp(searchTerm, 'i') }
       ]
     });
 
-    const locals = {
-      title: "Search",
-      description: "Search results"
-    };
-
     res.render('search', {
       data,
-      locals,
+      locals: {
+        title: "Search",
+        description: `Search results for "${searchTerm}"`
+      },
       currentRoute: '/search'
     });
   } catch (error) {
-    console.log(error);
+    console.error('Search error:', error);
     res.status(500).send("Search error");
   }
 });
 
 // Static pages
 router.get('/about', (req, res) => {
-  res.render('about', { currentRoute: '/about' });
+  res.render('about', {
+    currentRoute: '/about'
+  });
 });
 
 router.get('/contact', (req, res) => {
-  res.render('contact', { currentRoute: '/contact' });
+  res.render('contact', {
+    currentRoute: '/contact'
+  });
 });
-
-
-
-
-
-
-
 
 module.exports = router;
