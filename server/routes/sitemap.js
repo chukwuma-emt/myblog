@@ -8,12 +8,12 @@ router.get('/sitemap.xml', async (req, res) => {
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-    xml += `<url><loc>https://yourdomain.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
+    xml += `<url><loc>https://blog.ekolinc.com.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
 
     posts.forEach(post => {
       xml += `
 <url>
-  <loc>https://yourdomain.com/post/${post.slug}</loc>
+  <loc>https://blog.ekolinc.com/post/${post.slug}</loc>
   <lastmod>${post.updatedAt.toISOString()}</lastmod>
   <changefreq>weekly</changefreq>
   <priority>0.8</priority>
