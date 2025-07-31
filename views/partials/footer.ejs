@@ -1,3 +1,44 @@
 <footer class="footer">
-&copy; <%= new Date().getFullYear(); %> EM_TECH  . Built With Nodejs & Mongo
+  <div class="footer-container">
+    
+    <div class="footer-column">
+      <h4>About EM_TECH</h4>
+      <p>
+        EM_TECH is a platform for web development tips, projects, and tutorials built with modern technologies like Node.js and MongoDB.
+      </p>
+    </div>
+
+    <div class="footer-column">
+      <h4>Quick Links</h4>
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/about">About Us</a></li>
+        <li><a href="/posts">Blog Posts</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-column">
+      <h4>Follow Us</h4>
+      <div class="social-icons">
+        <a href="#"><img src="/images/facebook.svg" alt="Facebook"></a>
+        <a href="#"><img src="/images/twitter.svg" alt="Twitter"></a>
+        <a href="#"><img src="/images/github.svg" alt="GitHub"></a>
+        <a href="#"><img src="/images/linkedin.svg" alt="LinkedIn"></a>
+      </div>
+    </div>
+
+    <div class="footer-column">
+      <h4>Newsletter</h4>
+      <form action="/subscribe" method="POST" class="newsletter-form">
+        <input type="email" name="email" placeholder="Your email" required>
+        <button type="submit">Subscribe</button>
+      </form>
+    </div>
+
+  </div>
+
+  <div class="footer-bottom">
+    <p>&copy; <%= new Date().getFullYear() %> EM_TECH. All rights reserved. Built With Passion & Love.</p>
+  </div>
 </footer>

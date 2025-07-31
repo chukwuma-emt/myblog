@@ -252,23 +252,62 @@ html, body {
 
 /* ======= Footer ======= */
 .footer {
-  background-color: #1f2937; /* same as header */
-  color: #d1d5db;
-  text-align: center;
-  padding: 1.2rem 1rem;
+  background-color: #111;
+  color: #eee;
+  padding: 20px 0;
   font-size: 0.95rem;
-  border-top: 1px solid #374151;
-  margin-top: auto;
+  margin-top: 40px;
 }
 
-.footer a {
-  color: #60a5fa;
+.footer-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 15px;
+  gap: 10px;
+}
+
+.footer-left p {
+  margin: 5px 0;
+  text-align: center;
+}
+
+.footer-left span {
+  color: #4fc3f7;
+}
+
+.footer-right {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footer-right a {
+  color: #4fc3f7;
   text-decoration: none;
+  transition: color 0.2s;
 }
 
-.footer a:hover {
-  text-decoration: underline;
+.footer-right a:hover {
+  color: #fff;
 }
+
+@media (min-width: 600px) {
+  .footer-container {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .footer-left,
+  .footer-right {
+    text-align: left;
+  }
+}
+
 
 
 

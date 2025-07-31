@@ -1,0 +1,79 @@
+.about-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+  background-color: #fdfdfd;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.about-section h1 {
+  font-size: 2.2rem;
+  margin-bottom: 1rem;
+  color: #222;
+  text-align: center;
+}
+
+.about-section p {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  margin-bottom: 1rem;
+}
+
+.about-section ul {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 1rem;
+}
+
+.about-section ul li {
+  position: relative;
+  padding-left: 1.8rem;
+  margin-bottom: 0.6rem;
+}
+
+.about-section ul li::before {
+  content: "✔️";
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.contact-box {
+  background: #f2f2f2;
+  padding: 1rem;
+  border-left: 4px solid #2196F3;
+  margin-top: 1.5rem;
+  border-radius: 6px;
+}
+
+.contact-box p {
+  margin: 0.4rem 0;
+}
+
+.profile-pic {
+  display: block;
+  max-width: 160px;
+  border-radius: 50%;
+  margin: 1rem auto;
+  border: 3px solid #ddd;
+}
+
+
+
+
+@media (max-width: 600px) {
+  .about-section {
+    padding: 1rem;
+  }
+
+  .about-section h1 {
+    font-size: 1.8rem;
+  }
+
+  .about-section p, .about-section ul li {
+    font-size: 1rem;
+  }
+}
