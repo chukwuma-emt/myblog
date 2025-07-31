@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const slugify = require('slugify'); // ← install this if not already
+const slugify = require('slugify');
 
 const Schema = mongoose.Schema;
 
@@ -12,8 +12,13 @@ const PostSchema = new Schema({
     type: String,
     required: true
   },
-  image: {
+  mediaFile: {           // Updated from "image"
     type: String
+  },
+  mediaType: {           // New field to track file type: 'image', 'video', 'audio'
+    type: String,
+    enum: ['image', 'video', 'audio'],
+    default: 'image'
   },
   likes: {
     type: Number,
@@ -45,7 +50,6 @@ PostSchema.pre('save', async function (next) {
   let slug = baseSlug;
   let counter = 1;
 
-  // Ensure unique slug
   while (await mongoose.models.Post.findOne({ slug })) {
     slug = `${baseSlug}-${counter++}`;
   }

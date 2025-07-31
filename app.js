@@ -42,7 +42,11 @@ app.use(session({
 
 // Static assets
 app.use(express.static('public'));
-app.use('/uploads', express.static('public/uploads'));
+
+// Serve media files by folder
+app.use('/uploads/images', express.static('public/uploads/images'));
+app.use('/uploads/videos', express.static('public/uploads/videos'));
+app.use('/uploads/audio', express.static('public/uploads/audio'));
 
 // View Engine
 app.use(expressLayout);
@@ -62,7 +66,6 @@ app.use('/', require('./server/routes/admin'));
 app.use('/', require('./server/routes/owner'));
 const sitemapRoutes = require('./server/routes/sitemap');
 app.use('/', sitemapRoutes);
-
 
 // Server
 app.listen(PORT, () => {

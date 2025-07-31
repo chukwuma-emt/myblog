@@ -124,10 +124,13 @@ router.get('/add-post', authMiddleware, (req, res) => {
 });
 
 // POST: Add Post
-router.post('/add-post', authMiddleware, upload.single('image'), async (req, res) => {
+// POST: Add Post (supports image, video, audio)
+router.post('/add-post', authMiddleware, upload.single('media'), async (req, res) => {
   try {
     const { title, body } = req.body;
-    const image = req.file ? req.file.filename : null;
+
+    const mediaFile = req.file ? req.file.filename : null;
+    const mediaType = req.file ? req.file.mimetype.split('/')[0] : null; // 'image', 'video', 'audio'
 
     let baseSlug = slugify(title, { lower: true, strict: true });
     let slug = baseSlug;
@@ -136,7 +139,14 @@ router.post('/add-post', authMiddleware, upload.single('image'), async (req, res
       slug = `${baseSlug}-${counter++}`;
     }
 
-    const post = new Post({ title, body, image, slug });
+    const post = new Post({
+      title,
+      body,
+      slug,
+      mediaFile,
+      mediaType
+    });
+
     await post.save();
     res.redirect(`/post/${slug}`);
   } catch (err) {
@@ -144,6 +154,7 @@ router.post('/add-post', authMiddleware, upload.single('image'), async (req, res
     res.status(500).send('Post creation error');
   }
 });
+
 
 // GET: Edit Post
 router.get('/edit-post/:id', authMiddleware, async (req, res) => {
@@ -165,11 +176,13 @@ router.get('/edit-post/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// PUT: Edit Post
-router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req, res) => {
+// PUT: Edit Post (supports image, video, audio)
+router.put('/edit-post/:id', authMiddleware, upload.single('media'), async (req, res) => {
   try {
     const { title, body } = req.body;
-    const image = req.file ? req.file.filename : undefined;
+
+    const mediaFile = req.file ? req.file.filename : undefined;
+    const mediaType = req.file ? req.file.mimetype.split('/')[0] : undefined; // image, video, audio
 
     let baseSlug = slugify(title, { lower: true, strict: true });
     let slug = baseSlug;
@@ -185,7 +198,11 @@ router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req,
       updatedAt: Date.now()
     };
 
-    if (image) updatedPost.image = image;
+    // Update media only if a new file is uploaded
+    if (mediaFile) {
+      updatedPost.mediaFile = mediaFile;
+      updatedPost.mediaType = mediaType;
+    }
 
     await Post.findByIdAndUpdate(req.params.id, updatedPost);
     res.redirect(`/edit-post/${req.params.id}`);
@@ -194,6 +211,7 @@ router.put('/edit-post/:id', authMiddleware, upload.single('image'), async (req,
     res.status(500).send('Update error');
   }
 });
+
 
 // DELETE: Delete Post
 router.delete('/delete-post/:id', authMiddleware, async (req, res) => {

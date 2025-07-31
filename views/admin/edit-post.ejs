@@ -1,24 +1,39 @@
 <a href="/dashboard">&larr; Back</a>
+
 <div class="admin-title">
-    <h2>View / Edit Post</h2>
+  <h2>View / Edit Post</h2>
 
-    <form action="/delete-post/<%= data._id %>?_method=DELETE" method="post">
-        <input type="submit" value="Delete" class="btn-delete btn">
-    </form>
-
-
+  <form action="/delete-post/<%= data._id %>?_method=DELETE" method="post">
+    <input type="submit" value="Delete" class="btn-delete btn">
+  </form>
 </div>
 
-<form action="/edit-post/<%= data._id %>?_method=PUT" method="POST" enctype="multipart/form-data" >
-   <label for="title"><b>Title</b></label>
-   <input type="text" placeholder="Post Title" name="title" value="<%= data.title %>">
+<form action="/edit-post/<%= data._id %>?_method=PUT" method="POST" enctype="multipart/form-data">
+  <label for="title"><b>Title</b></label>
+  <input type="text" placeholder="Post Title" name="title" value="<%= data.title %>" required>
 
-   <label for="body"><b>Content</b></label>
-   <textarea name="body" cols="50" rows="10" ><%= data.body %></textarea>
+  <label for="body"><b>Content</b></label>
+  <textarea name="body" cols="50" rows="10" required><%= data.body %></textarea>
 
-   <label for="image"><b>post image</b></label>
-   <input type="file" name="image" accept="image/*">
+  <label for="media"><b>Update media (image / video / audio)</b></label>
+  <input type="file" name="media" accept="image/*,video/*,audio/*">
 
-   <input type="submit" value="Update" class="btn">
+  <% if (data.mediaFile && data.mediaType === 'image') { %>
+    <p><b>Current Media:</b></p>
+    <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Media" style="max-width: 200px; display: block; margin-bottom: 10px;">
+  <% } else if (data.mediaFile && data.mediaType === 'video') { %>
+    <p><b>Current Media:</b></p>
+    <video controls style="max-width: 100%; margin-bottom: 10px;">
+      <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  <% } else if (data.mediaFile && data.mediaType === 'audio') { %>
+    <p><b>Current Media:</b></p>
+    <audio controls style="margin-bottom: 10px;">
+      <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
+      Your browser does not support the audio element.
+    </audio>
+  <% } %>
 
+  <input type="submit" value="Update" class="btn">
 </form>

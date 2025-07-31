@@ -1,6 +1,18 @@
-<% if (data.image) { %>
-  <img src="/uploads/<%= data.image %>" alt="post image" style="max-width: 100%; height: auto; border-radius: 8px;">
+<% if (data.mediaType === 'image') { %>
+  <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Image" style="max-width: 100%; border-radius: 8px;">
+<% } else if (data.mediaType === 'video') { %>
+  <video controls style="max-width: 100%; border-radius: 8px;">
+    <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+<% } else if (data.mediaType === 'audio') { %>
+  <audio controls style="width: 100%; margin-top: 10px;">
+    <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
+    Your browser does not support the audio element.
+  </audio>
 <% } %>
+
+
 
 <h1><%= data.title %></h1>
 
