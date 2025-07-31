@@ -24,35 +24,37 @@
     <h2 class="articles__heading">Latest Posts</h2>
 
     <div class="articles-cards">
-      <% data.forEach(post => { %>
-        <div class="card">
-          <a href="/post/<%= post.slug %>">
+  <% data.forEach(post => { %>
+    <div class="card">
+      <a href="/post/<%= post.slug %>">
 
-            <% if (post.mediaType === 'image') { %>
-              <img src="/uploads/images/<%= post.mediaFile %>" alt="<%= post.title %>" loading="lazy">
-            <% } else if (post.mediaType === 'video') { %>
-              <video controls preload="none">
-                <source src="/uploads/videos/<%= post.mediaFile %>" type="video/mp4">
-              </video>
-            <% } else if (post.mediaType === 'audio') { %>
-              <audio controls preload="none">
-                <source src="/uploads/audio/<%= post.mediaFile %>" type="audio/mpeg">
-              </audio>
-            <% } else { %>
-              <img src="/img/default-post.jpg" alt="default image" loading="lazy">
-            <% } %>
-
-            <h2><%= post.title %></h2>
-            <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
-            <div class="post-meta">
-              <small>👁️ <%= post.views || 0 %> views</small>
-              <small>❤️ <%= post.likes || 0 %> likes</small>
-            </div>
-
-          </a>
+        <div class="media-box">
+          <% if (post.mediaType === 'image') { %>
+            <img src="/uploads/images/<%= post.mediaFile %>" alt="<%= post.title %>" loading="lazy">
+          <% } else if (post.mediaType === 'video') { %>
+            <video controls preload="none" poster="/uploads/thumbnails/<%= post.thumbnail %>">
+              <source src="/uploads/videos/<%= post.mediaFile %>" type="video/mp4">
+            </video>
+          <% } else if (post.mediaType === 'audio') { %>
+            <audio controls preload="none">
+              <source src="/uploads/audio/<%= post.mediaFile %>" type="audio/mpeg">
+            </audio>
+          <% } else { %>
+            <img src="/img/default-post.jpg" alt="default image" loading="lazy">
+          <% } %>
         </div>
-      <% }) %>
+
+        <h2><%= post.title %></h2>
+        <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
+        <div class="post-meta">
+          <small>👁️ <%= post.views || 0 %> views</small>
+          <small>❤️ <%= post.likes || 0 %> likes</small>
+        </div>
+
+      </a>
     </div>
+  <% }) %>
+</div>
 
     <!-- ✅ Pagination -->
     <% if (nextPage !== null) { %>

@@ -282,112 +282,117 @@ html, body {
 
 
 /* ======= Author Section ======= */
-.author {
+/* Author Section */
+.auther {
   text-align: center;
-  padding: 2rem 1rem;
-  background-color: #f1f5f9;
-}
-
-.author__heading {
-  font-size: 2rem;
-  color: #1f2937;
-  margin-bottom: 0.5rem;
-}
-
-.author__body {
-  font-size: 1.1rem;
-  color: #4b5563;
-}
-
-/* ======= Hero Image Section ======= */
-.hero-section {
-  padding: 1rem;
-  display: flex;
-  justify-content: center;
-  background-color: #ffffff;
-}
-
-.hero-image {
-  width: 100%;
-  max-width: 960px;
-  height: auto;
-  border-radius: 12px;
-  object-fit: cover;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-}
-
-/* ======= Articles Section ======= */
-.articles {
-  padding: 2rem 1rem;
-  background-color: #f9fafb;
-  text-align: center;
-}
-
-.articles__heading {
-  font-size: 1.8rem;
   margin-bottom: 2rem;
-  color: #1f2937;
+}
+.auther__heading {
+  font-size: 2rem;
+  font-weight: bold;
+}
+.auther__body {
+  font-size: 1rem;
+  color: #555;
 }
 
-/* ======= Responsive Cards Grid ======= */
+/* Hero Image */
+.my-img {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.hero-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+/* Latest Posts Section */
+.articles {
+  max-width: 1200px;
+  margin: auto;
+}
+.articles__heading {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* Card Layout */
 .articles-cards {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  padding: 0.5rem;
 }
 
 .card {
   background: #fff;
   border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-  transition: transform 0.3s ease;
-  text-align: left;
+  transition: transform 0.2s ease;
 }
-
 .card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-5px);
 }
-
-.card img {
-  width: 100%;
-  height: auto;
+.card a {
+  text-decoration: none;
+  color: inherit;
   display: block;
-  object-fit: cover;
-}
-
-.card-content {
   padding: 1rem;
 }
 
-.card-content h2 {
-  font-size: 1.2rem;
-  color: #1f2937;
+/* Media (Image, Video, Audio) */
+.media-box {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000;
+}
+.media-box img,
+.media-box video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-box audio {
+  width: 100%;
+}
+
+/* Post Meta */
+.card h2 {
+  font-size: 1.25rem;
   margin-bottom: 0.5rem;
 }
-
 .article-list_date {
+  font-size: 0.9rem;
+  color: #777;
+  margin-bottom: 0.5rem;
+}
+.post-meta {
+  display: flex;
+  justify-content: space-between;
   font-size: 0.85rem;
-  color: #6b7280;
+  color: #999;
 }
 
-/* ======= Pagination Button ======= */
+/* Pagination */
 .pagination {
-  display: inline-block;
-  margin-top: 2rem;
-  background: #2563eb;
-  color: white;
-  padding: 0.6rem 1.2rem;
-  border-radius: 6px;
+  display: block;
+  text-align: center;
+  margin: 2rem 0;
+  color: #007bff;
+  font-weight: bold;
   text-decoration: none;
-  font-weight: 500;
-  transition: background 0.3s ease;
 }
-
 .pagination:hover {
-  background: #1d4ed8;
+  text-decoration: underline;
 }
 
 /* ======= Media Queries ======= */
