@@ -1,63 +1,82 @@
-<% if (data.mediaType === 'image') { %>
-  <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Image" style="max-width: 100%; border-radius: 8px;">
-<% } else if (data.mediaType === 'video') { %>
-  <video controls style="max-width: 100%; border-radius: 8px;">
-    <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
-    Your browser does not support the video tag.
-  </video>
-<% } else if (data.mediaType === 'audio') { %>
-  <audio controls style="width: 100%; margin-top: 10px;">
-    <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
-    Your browser does not support the audio element.
-  </audio>
-<% } %>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= data.title %> | My Blog</title>
+  <link rel="stylesheet" href="/css/post.css">
+</head>
+<body>
 
+  <div class="container" style="max-width: 800px; margin: auto; padding: 20px;">
 
+    <!-- ✅ Media Display -->
+    <div class="media-container" style="margin-bottom: 20px;">
+      <% if (data.mediaType === 'image') { %>
+        <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Image" style="max-width: 100%; border-radius: 8px;">
+      <% } else if (data.mediaType === 'video') { %>
+        <video controls style="max-width: 100%; border-radius: 8px;">
+          <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+      <% } else if (data.mediaType === 'audio') { %>
+        <audio controls style="width: 100%; margin-top: 10px;">
+          <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
+          Your browser does not support the audio element.
+        </audio>
+      <% } %>
+    </div>
 
-<h1><%= data.title %></h1>
+    <!-- ✅ Post Title -->
+    <h1><%= data.title %></h1>
 
-<!-- ✅ Optional: Show slug and date -->
-<p>
-  <small><strong>Slug:</strong> <%= data.slug %></small><br>
-  <small><strong>Date:</strong> <%= new Date(data.createdAt).toLocaleString() %></small>
-</p>
+    <!-- ✅ Optional: Show slug and date -->
+    <p>
+      <small><strong>Slug:</strong> <%= data.slug %></small><br>
+      <small><strong>Date:</strong> <%= new Date(data.createdAt).toLocaleString() %></small>
+    </p>
 
-<!-- ✅ Post Meta: Views and Likes -->
-<p>
-  <strong>Views:</strong> <%= data.views || 0 %> &nbsp;|&nbsp;
-  <strong>Likes:</strong> <span id="likeCount"><%= data.likes || 0 %></span>
-  <button id="likeBtn" data-postid="<%= data._id %>">❤️ Like</button>
-</p>
+    <!-- ✅ Post Meta: Views and Likes -->
+    <p>
+      <strong>Views:</strong> <%= data.views || 0 %> &nbsp;|&nbsp;
+      <strong>Likes:</strong> <span id="likeCount"><%= data.likes || 0 %></span>
+      <button id="likeBtn" data-postid="<%= data._id %>">❤️ Like</button>
+    </p>
 
-<article class="article" style="line-height: 1.7;">
-  <%= data.body %>
-</article>
+    <!-- ✅ Post Body -->
+    <article class="article" style="line-height: 1.7;">
+      <%= data.body %>
+    </article>
 
-<!-- ✅ Back to Blog List -->
-<p><a href="/posts">← Back to Blog List</a></p>
+    <!-- ✅ Back to Blog List -->
+    <p><a href="/">← Back to Blog List</a></p>
 
-<!-- ✅ Comments Section -->
-<section class="comments-section" style="margin-top: 40px;">
-  <h3>Comments</h3>
+    <!-- ✅ Comments Section -->
+    <section class="comments-section" style="margin-top: 40px;">
+      <h3>Comments</h3>
 
-  <div id="commentList">
-    <% if (comments.length === 0) { %>
-      <p>No comments yet. Be the first to comment!</p>
-    <% } else { %>
-      <% comments.forEach(comment => { %>
-        <div class="comment" style="border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 5px;">
-          <strong><%= comment.username %>:</strong> <%= comment.text %>
-        </div>
-      <% }) %>
-    <% } %>
+      <div id="commentList">
+        <% if (comments.length === 0) { %>
+          <p>No comments yet. Be the first to comment!</p>
+        <% } else { %>
+          <% comments.forEach(comment => { %>
+            <div class="comment" style="border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 5px;">
+              <strong><%= comment.username %>:</strong> <%= comment.text %>
+            </div>
+          <% }) %>
+        <% } %>
+      </div>
+
+      <form id="commentForm" style="margin-top: 20px;">
+        <input type="hidden" id="postId" name="postId" value="<%= data._id %>">
+        <input type="text" id="username" name="username" placeholder="Your name" required style="display: block; margin-bottom: 10px; width: 100%;">
+        <textarea id="commentText" name="text" placeholder="Write a comment..." required style="width: 100%; margin-bottom: 10px;"></textarea>
+        <button type="submit">Post Comment</button>
+      </form>
+    </section>
+
   </div>
 
-  <form id="commentForm" style="margin-top: 20px;">
-    <input type="hidden" id="postId" name="postId" value="<%= data._id %>">
-    <input type="text" id="username" name="username" placeholder="Your name" required style="display: block; margin-bottom: 10px; width: 100%;">
-    <textarea id="commentText" name="text" placeholder="Write a comment..." required style="width: 100%; margin-bottom: 10px;"></textarea>
-    <button type="submit">Post Comment</button>
-  </form>
-</section>
-
-<link rel="stylesheet" href="/css/post.css">
+  <script src="/js/post-actions.js"></script>
+</body>
+</html>

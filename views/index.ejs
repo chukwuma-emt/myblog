@@ -1,51 +1,65 @@
-<div class="auther">
-  <h1 class="auther__heading">Hi, I am Chukwuma</h1>
-  <p class="auther__body">Web developer and computer scientist.</p>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welcome | Blog by Chukwuma</title>
+  <link rel="stylesheet" href="/css/styles.css"> <!-- Update with your actual stylesheet path -->
+</head>
+<body>
 
-<div class="my-img">
-  <img src="/img/chukwuma.jpg" alt="person looking out through window" class="hero-image" width="981" height="528">
-</div>
-
-<section class="articles">
-  <h2 class="articles__heading">Latest Posts</h2>
-
-
-
-
-
-  <div class="articles-cards">
-   <% data.forEach(post => { %>
-  <div class="card">
-    <a href="/post/<%= post.slug %>">
-        
-      <% if (post.mediaType === 'image') { %>
-  <img src="/uploads/images/<%= post.mediaFile %>" alt="<%= post.title %>" loading="lazy">
-<% } else if (post.mediaType === 'video') { %>
-  <video controls preload="none">
-    <source src="/uploads/videos/<%= post.mediaFile %>" type="video/mp4">
-  </video>
-<% } else if (post.mediaType === 'audio') { %>
-  <audio controls preload="none">
-    <source src="/uploads/audio/<%= post.mediaFile %>" type="audio/mpeg">
-  </audio>
-<% } else { %>
-  <img src="/img/default-post.jpg" alt="default image" loading="lazy">
-<% } %>
-
-
-      <h2><%= post.title %></h2>
-      <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
-      <div class="post-meta">
-        <small>👁️ <%= post.views || 0 %> views</small>
-        <small>❤️ <%= post.likes || 0 %> likes</small>
-      </div>
-      
-    </a>
+  <!-- ✅ Author Info -->
+  <div class="auther">
+    <h1 class="auther__heading">Hi, I am Chukwuma</h1>
+    <p class="auther__body">Web developer and computer scientist.</p>
   </div>
-<% }) %>
 
-  <% if (nextPage !== null) { %>
-    <a href="/?page=<%= nextPage %>" class="pagination">&lt; View Older Posts</a>
-  <% } %>
-</section>
+  <!-- ✅ Hero Image -->
+  <div class="my-img">
+    <img src="/img/chukwuma.jpg" alt="person looking out through window" class="hero-image" width="981" height="528">
+  </div>
+
+  <!-- ✅ Latest Posts Section -->
+  <section class="articles">
+    <h2 class="articles__heading">Latest Posts</h2>
+
+    <div class="articles-cards">
+      <% data.forEach(post => { %>
+        <div class="card">
+          <a href="/post/<%= post.slug %>">
+
+            <% if (post.mediaType === 'image') { %>
+              <img src="/uploads/images/<%= post.mediaFile %>" alt="<%= post.title %>" loading="lazy">
+            <% } else if (post.mediaType === 'video') { %>
+              <video controls preload="none">
+                <source src="/uploads/videos/<%= post.mediaFile %>" type="video/mp4">
+              </video>
+            <% } else if (post.mediaType === 'audio') { %>
+              <audio controls preload="none">
+                <source src="/uploads/audio/<%= post.mediaFile %>" type="audio/mpeg">
+              </audio>
+            <% } else { %>
+              <img src="/img/default-post.jpg" alt="default image" loading="lazy">
+            <% } %>
+
+            <h2><%= post.title %></h2>
+            <p class="article-list_date"><%= post.createdAt.toDateString() %></p>
+            <div class="post-meta">
+              <small>👁️ <%= post.views || 0 %> views</small>
+              <small>❤️ <%= post.likes || 0 %> likes</small>
+            </div>
+
+          </a>
+        </div>
+      <% }) %>
+    </div>
+
+    <!-- ✅ Pagination -->
+    <% if (nextPage !== null) { %>
+      <a href="/?page=<%= nextPage %>" class="pagination">&lt; View Older Posts</a>
+    <% } %>
+  </section>
+
+  <script src="/js/main.js"></script> <!-- Optional JavaScript file -->
+</body>
+</html>
