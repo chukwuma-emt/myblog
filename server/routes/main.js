@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
-const { marked } = require('marked'); // ✅ NEW
+const { marked } = require('marked');
 
-// Homepage with pagination
+// ===============================
+// 🏠 HOMEPAGE (WITH MARKDOWN SUPPORT)
+// ===============================
 router.get('/', async (req, res) => {
   try {
     const locals = {
@@ -15,12 +17,19 @@ router.get('/', async (req, res) => {
     const perPage = 10;
     const page = Math.max(parseInt(req.query.page) || 1, 1);
 
-    const posts = await Post.aggregate([{ $sort: { createdAt: -1 } }])
+    // 🔥 Get posts
+    const postsRaw = await Post.aggregate([{ $sort: { createdAt: -1 } }])
       .skip(perPage * (page - 1))
       .limit(perPage);
 
     const count = await Post.countDocuments();
     const hasNextPage = page < Math.ceil(count / perPage);
+
+    // 🔥 Convert Markdown → HTML (IMPORTANT)
+    const posts = postsRaw.map(post => ({
+      ...post,
+      bodyHTML: marked(post.body || '')
+    }));
 
     res.render('index', {
       locals,
@@ -29,13 +38,17 @@ router.get('/', async (req, res) => {
       nextPage: hasNextPage ? page + 1 : null,
       currentRoute: '/'
     });
+
   } catch (error) {
     console.error('Homepage error:', error);
     res.status(500).send('Internal Server Error');
   }
 });
 
-// View single post (🔥 FIXED MARKDOWN HERE)
+
+// ===============================
+// 📄 VIEW SINGLE POST
+// ===============================
 router.get('/post/:slug', async (req, res) => {
   try {
     const slug = req.params.slug;
@@ -43,10 +56,10 @@ router.get('/post/:slug', async (req, res) => {
 
     if (!post) return res.status(404).send("Post not found");
 
-    // ✅ Convert Markdown → HTML
+    // 🔥 Convert Markdown → HTML
     const htmlBody = marked(post.body || '');
 
-    // Count views (session-based)
+    // 👁️ Track views (session-based)
     if (!req.session.viewedPosts) req.session.viewedPosts = [];
 
     if (!req.session.viewedPosts.includes(post._id.toString())) {
@@ -54,14 +67,14 @@ router.get('/post/:slug', async (req, res) => {
       req.session.viewedPosts.push(post._id.toString());
     }
 
-    // Load comments
+    // 💬 Load comments
     const comments = await Comment.find({ postId: post._id })
       .sort({ createdAt: -1 });
 
-    // ✅ Clean text for SEO (remove markdown + HTML)
+    // 🔥 SEO clean description
     const plainText = post.body
-      .replace(/[#_*`>-]/g, '') // remove markdown symbols
-      .replace(/(<([^>]+)>)/gi, '') // remove HTML
+      .replace(/[#_*`>-]/g, '')
+      .replace(/(<([^>]+)>)/gi, '')
       .trim();
 
     const locals = {
@@ -75,7 +88,7 @@ router.get('/post/:slug', async (req, res) => {
       locals,
       data: {
         ...post.toObject(),
-        body: htmlBody // ✅ send HTML version
+        body: htmlBody // ✅ HTML version
       },
       comments,
       currentRoute: `/post/${slug}`
@@ -87,7 +100,10 @@ router.get('/post/:slug', async (req, res) => {
   }
 });
 
-// Like a post
+
+// ===============================
+// ❤️ LIKE POST
+// ===============================
 router.post('/like/:id', async (req, res) => {
   try {
     const postId = req.params.id;
@@ -124,7 +140,10 @@ router.post('/like/:id', async (req, res) => {
   }
 });
 
-// Submit a comment
+
+// ===============================
+// 💬 ADD COMMENT
+// ===============================
 router.post('/add', async (req, res) => {
   try {
     const { postId, username, text } = req.body;
@@ -152,7 +171,10 @@ router.post('/add', async (req, res) => {
   }
 });
 
-// Search posts
+
+// ===============================
+// 🔍 SEARCH
+// ===============================
 router.post('/search', async (req, res) => {
   try {
     const rawSearch = req.body.searchTerm || '';
@@ -191,7 +213,10 @@ router.post('/search', async (req, res) => {
   }
 });
 
-// Static pages
+
+// ===============================
+// 📄 STATIC PAGES
+// ===============================
 router.get('/about', (req, res) => {
   res.render('about', { currentRoute: '/about' });
 });
@@ -199,5 +224,6 @@ router.get('/about', (req, res) => {
 router.get('/contact', (req, res) => {
   res.render('contact', { currentRoute: '/contact' });
 });
+
 
 module.exports = router;
