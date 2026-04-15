@@ -1,24 +1,30 @@
 document.addEventListener("DOMContentLoaded", function () {
 
-  console.log("JS working");
+  console.log("✅ mobile expand working");
 
-  const contents = document.querySelectorAll(".card-content");
+  const items = document.querySelectorAll("[data-expand]");
 
-  contents.forEach(content => {
+  items.forEach(item => {
 
-    content.addEventListener("click", function (e) {
+    const full = item.querySelector(".full-content");
 
-      const full = content.querySelector(".full-content");
+    if (!full) return;
 
-      if (!full) return;
+    function toggle(e) {
 
-      // Ignore links
-      if (e.target.tagName === "A") return;
+      // ignore links & media
+      if (e.target.closest("a, video, audio")) return;
 
-      // Toggle
+      e.preventDefault();
+
       full.classList.toggle("active");
+    }
 
-    });
+    // desktop
+    item.addEventListener("click", toggle);
+
+    // mobile (THIS fixes your issue)
+    item.addEventListener("touchend", toggle);
 
   });
 

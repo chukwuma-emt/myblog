@@ -99,31 +99,18 @@ body {
   touch-action: manipulation;
 }
 
-/* ===== EXPANDABLE CONTENT ===== */
+/* ===== EXPANDABLE CONTENT (FINAL FIX) ===== */
 .full-content {
-  display: none; /* ✅ always hidden on load */
-  padding: 0 15px 10px;
+  display: none; /* 🔥 ALWAYS CLOSED BY DEFAULT */
+  padding: 10px 15px;
   font-size: 0.9rem;
   color: #444;
   line-height: 1.6;
-  overflow: hidden;
 }
 
-/* Optional smooth fade */
+/* OPEN STATE */
 .full-content.active {
   display: block;
-  animation: fadeIn 0.25s ease;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* ===== META ===== */
