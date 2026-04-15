@@ -92,24 +92,27 @@ body {
   line-height: 1.5;
 }
 
-/* ===== TAP FIX (FINAL) ===== */
+/* ===== TAP FIX ===== */
 .card-content {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 
-/* DO NOT block pointer events anymore ❌ */
-/* Removed the bug causing mobile issue */
-
 /* ===== EXPANDABLE CONTENT ===== */
 .full-content {
-  display: none;
+  display: none; /* ✅ always hidden on load */
   padding: 0 15px 10px;
   font-size: 0.9rem;
   color: #444;
   line-height: 1.6;
-  animation: fadeIn 0.3s ease;
+  overflow: hidden;
+}
+
+/* Optional smooth fade */
+.full-content.active {
+  display: block;
+  animation: fadeIn 0.25s ease;
 }
 
 @keyframes fadeIn {
@@ -130,6 +133,14 @@ body {
   padding: 10px 15px 15px;
   font-size: 0.8rem;
   color: #666;
+}
+
+.article-list_date {
+  padding: 0 15px;
+}
+
+.open-link {
+  padding: 0 15px 15px;
 }
 
 /* ===== PAGINATION ===== */
