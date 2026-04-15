@@ -1,49 +1,24 @@
 document.addEventListener("DOMContentLoaded", function () {
 
-  console.log("✅ Expand system running");
+  console.log("JS working");
 
-  const cards = document.querySelectorAll(".card");
+  const contents = document.querySelectorAll(".card-content");
 
-  // Ensure all are closed on load
-  document.querySelectorAll(".full-content").forEach(el => {
-    el.style.display = "none";
-  });
+  contents.forEach(content => {
 
-  cards.forEach(card => {
+    content.addEventListener("click", function (e) {
 
-    const content = card.querySelector(".card-content");
-    const full = card.querySelector(".full-content");
+      const full = content.querySelector(".full-content");
 
-    if (!content || !full) return;
+      if (!full) return;
 
-    function toggle(e) {
+      // Ignore links
+      if (e.target.tagName === "A") return;
 
-      const tag = e.target.tagName;
+      // Toggle
+      full.classList.toggle("active");
 
-      // Allow links & media
-      if (
-        tag === "A" ||
-        tag === "VIDEO" ||
-        tag === "AUDIO"
-      ) return;
-
-      e.preventDefault();
-
-      // Close others
-      document.querySelectorAll(".full-content").forEach(el => {
-        if (el !== full) el.style.display = "none";
-      });
-
-      // Toggle current
-      full.style.display =
-        full.style.display === "block" ? "none" : "block";
-    }
-
-    // Desktop
-    content.addEventListener("click", toggle);
-
-    // Mobile (IMPORTANT)
-    content.addEventListener("touchend", toggle);
+    });
 
   });
 
