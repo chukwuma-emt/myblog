@@ -57,15 +57,25 @@
 
             <h2 class="post-title"><%= post.title %></h2>
 
+            <!-- SHORT TEXT -->
             <p class="excerpt">
               <%= post.body.replace(/[#_*`>-]/g, '').substring(0, 80) %>...
             </p>
 
             <!-- FULL CONTENT -->
             <div class="full-content">
-              <%- post.bodyHTML %>
+
+              <!-- ✅ CLOSE BUTTON -->
+              <button class="close-btn">✕ Close</button>
+
+              <!-- ✅ FULL BODY -->
+              <div class="full-body">
+                <%- post.bodyHTML %>
+              </div>
+
             </div>
 
+            <!-- META -->
             <p class="article-list_date">
               <%= new Date(post.createdAt).toDateString() %>
             </p>
@@ -75,6 +85,7 @@
               <small>❤️ <%= post.likes || 0 %></small>
             </div>
 
+            <!-- FULL PAGE LINK -->
             <p class="open-link">
               <a href="/post/<%= post.slug %>">Open full page →</a>
             </p>

@@ -1,7 +1,5 @@
 document.addEventListener("DOMContentLoaded", function () {
 
-  console.log("✅ mobile expand working");
-
   const items = document.querySelectorAll("[data-expand]");
 
   items.forEach(item => {
@@ -10,21 +8,35 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!full) return;
 
-    function toggle(e) {
+    item.addEventListener("click", function (e) {
 
-      // ignore links & media
-      if (e.target.closest("a, video, audio")) return;
+      // ignore links/media/buttons
+      if (e.target.closest("a, video, audio, button")) return;
 
-      e.preventDefault();
+      // close all first
+      document.querySelectorAll(".full-content").forEach(el => {
+        el.classList.remove("active");
+      });
 
-      full.classList.toggle("active");
-    }
+      // open this one
+      full.classList.add("active");
 
-    // desktop
-    item.addEventListener("click", toggle);
+      // smooth scroll into view
+      setTimeout(() => {
+        full.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
 
-    // mobile (THIS fixes your issue)
-    item.addEventListener("touchend", toggle);
+    });
+
+  });
+
+  // CLOSE BUTTON
+  document.querySelectorAll(".close-btn").forEach(btn => {
+
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      btn.closest(".full-content").classList.remove("active");
+    });
 
   });
 
