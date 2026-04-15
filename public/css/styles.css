@@ -92,23 +92,15 @@ body {
   line-height: 1.5;
 }
 
-/* 🔥 TAP FIX (IMPORTANT) */
+/* ===== TAP FIX (FINAL) ===== */
 .card-content {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-/* Prevent inner elements blocking tap */
-.card-content * {
-  pointer-events: none;
-}
-
-/* Allow links/media */
-.card-content a,
-.card-content video,
-.card-content audio {
-  pointer-events: auto;
-}
+/* DO NOT block pointer events anymore ❌ */
+/* Removed the bug causing mobile issue */
 
 /* ===== EXPANDABLE CONTENT ===== */
 .full-content {
