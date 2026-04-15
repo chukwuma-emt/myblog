@@ -10,6 +10,19 @@
     /* Make card clickable */
     .card-content {
       cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Prevent inner elements from blocking tap */
+    .card-content * {
+      pointer-events: none;
+    }
+
+    /* Allow links/media to still work */
+    .card-content a,
+    .card-content video,
+    .card-content audio {
+      pointer-events: auto;
     }
 
     /* Hidden full content */
@@ -50,7 +63,7 @@
       <% data.forEach(post => { %>
         <div class="card">
 
-          <!-- MEDIA (not clickable for expand) -->
+          <!-- MEDIA -->
           <div class="media-box">
             <% if (post.mediaType === 'image') { %>
               <img src="/uploads/images/<%= post.mediaFile %>" alt="<%= post.title %>">
@@ -67,17 +80,17 @@
             <% } %>
           </div>
 
-          <!-- CONTENT (clickable area) -->
+          <!-- CLICKABLE CONTENT -->
           <div class="card-content">
 
             <h2 style="padding: 10px 15px 0;"><%= post.title %></h2>
 
-            <!-- SHORT TEXT -->
+            <!-- SHORT -->
             <p class="excerpt">
               <%= post.body.replace(/[#_*`>-]/g, '').substring(0, 80) %>...
             </p>
 
-            <!-- FULL CONTENT (HTML) -->
+            <!-- FULL -->
             <div class="full-content">
               <%- post.bodyHTML %>
             </div>
@@ -92,7 +105,6 @@
               <small>❤️ <%= post.likes || 0 %></small>
             </div>
 
-            <!-- OPTIONAL FULL PAGE LINK -->
             <p style="padding: 0 15px 15px;">
               <a href="/post/<%= post.slug %>">Open full page →</a>
             </p>
@@ -114,7 +126,6 @@
 
 </div>
 
-<!-- JS -->
 <script src="/js/main.js" defer></script>
 
 </body>
