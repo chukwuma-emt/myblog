@@ -1,44 +1,178 @@
-<footer class="footer">
-  <div class="footer-container">
-    
-    <div class="footer-column">
-      <h4>About EM_TECH</h4>
-      <p>
-        EM_TECH is a platform for web development tips, projects, and tutorials built with modern technologies like Node.js and MongoDB.
-      </p>
-    </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Footer</title>
 
-    <div class="footer-column">
-      <h4>Quick Links</h4>
-      <ul>
-        <li><a href="/">Home</a></li>
-        <li><a href="/about">About Us</a></li>
-        <li><a href="/posts">Blog Posts</a></li>
-        <li><a href="/contact">Contact</a></li>
-      </ul>
-    </div>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+    }
 
-    <div class="footer-column">
-      <h4>Follow Us</h4>
-      <div class="social-icons">
-        <a href="#"><img src="/images/facebook.svg" alt="Facebook"></a>
-        <a href="#"><img src="/images/twitter.svg" alt="Twitter"></a>
-        <a href="#"><img src="/images/github.svg" alt="GitHub"></a>
-        <a href="#"><img src="/images/linkedin.svg" alt="LinkedIn"></a>
+    /* ===== FOOTER ===== */
+    .footer {
+      background: #111;
+      color: #ddd;
+      margin-top: 50px;
+      font-size: 14px;
+    }
+
+    /* CONTAINER */
+    .footer-container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 40px 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 30px;
+    }
+
+    /* COLUMNS */
+    .footer-column h4 {
+      color: #fff;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+
+    .footer-column p {
+      color: #bbb;
+      line-height: 1.6;
+    }
+
+    /* LINKS */
+    .footer-column ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .footer-column ul li {
+      margin-bottom: 10px;
+    }
+
+    .footer-column ul li a {
+      color: #bbb;
+      text-decoration: none;
+      transition: 0.2s;
+    }
+
+    .footer-column ul li a:hover {
+      color: #fff;
+    }
+
+    /* SOCIAL ICONS */
+    .social-icons {
+      display: flex;
+      gap: 10px;
+    }
+
+    .social-icons img {
+      width: 24px;
+      height: 24px;
+      filter: brightness(0.8);
+      transition: 0.3s;
+    }
+
+    .social-icons img:hover {
+      filter: brightness(1.5);
+    }
+
+    /* NEWSLETTER */
+    .newsletter-form {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .newsletter-form input {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .newsletter-form button {
+      padding: 8px 15px;
+      background: #007bff;
+      border: none;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .newsletter-form button:hover {
+      background: #0056b3;
+    }
+
+    /* BOTTOM */
+    .footer-bottom {
+      text-align: center;
+      padding: 15px;
+      border-top: 1px solid #222;
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    /* MOBILE */
+    @media (max-width: 768px) {
+      .footer-container {
+        padding: 30px 15px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <footer class="footer">
+    <div class="footer-container">
+      
+      <div class="footer-column">
+        <h4>About EM_TECH</h4>
+        <p>
+          EM_TECH is a platform for web development tips, projects, and tutorials built with modern technologies like Node.js and MongoDB.
+        </p>
       </div>
+
+      <div class="footer-column">
+        <h4>Quick Links</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/about">About Us</a></li>
+          <li><a href="/posts">Blog Posts</a></li>
+          <li><a href="/contact">Contact</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-column">
+        <h4>Follow Us</h4>
+        <div class="social-icons">
+          <a href="#"><img src="/images/facebook.svg" alt="Facebook"></a>
+          <a href="#"><img src="/images/twitter.svg" alt="Twitter"></a>
+          <a href="#"><img src="/images/github.svg" alt="GitHub"></a>
+          <a href="#"><img src="/images/linkedin.svg" alt="LinkedIn"></a>
+        </div>
+      </div>
+
+      <div class="footer-column">
+        <h4>Newsletter</h4>
+        <form action="/subscribe" method="POST" class="newsletter-form">
+          <input type="email" name="email" placeholder="Your email" required>
+          <button type="submit">Subscribe</button>
+        </form>
+      </div>
+
     </div>
 
-    <div class="footer-column">
-      <h4>Newsletter</h4>
-      <form action="/subscribe" method="POST" class="newsletter-form">
-        <input type="email" name="email" placeholder="Your email" required>
-        <button type="submit">Subscribe</button>
-      </form>
+    <div class="footer-bottom">
+      <p>&copy; <%= new Date().getFullYear() %> EM_TECH. All rights reserved. Built With Passion & Love.</p>
     </div>
+  </footer>
 
-  </div>
-
-  <div class="footer-bottom">
-    <p>&copy; <%= new Date().getFullYear() %> EM_TECH. All rights reserved. Built With Passion & Love.</p>
-  </div>
-</footer>
+</body>
+</html>

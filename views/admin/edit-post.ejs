@@ -1,39 +1,203 @@
-<a href="/dashboard">&larr; Back</a>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Post</title>
 
-<div class="admin-title">
-  <h2>View / Edit Post</h2>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+    }
 
-  <form action="/delete-post/<%= data._id %>?_method=DELETE" method="post">
-    <input type="submit" value="Delete" class="btn-delete btn">
-  </form>
-</div>
+    .container {
+      max-width: 750px;
+      margin: auto;
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
 
-<form action="/edit-post/<%= data._id %>?_method=PUT" method="POST" enctype="multipart/form-data">
-  <label for="title"><b>Title</b></label>
-  <input type="text" placeholder="Post Title" name="title" value="<%= data.title %>" required>
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
 
-  <label for="body"><b>Content</b></label>
-  <textarea name="body" cols="50" rows="10" required><%= data.body %></textarea>
+    .back-link {
+      text-decoration: none;
+      color: #007bff;
+      font-size: 14px;
+    }
 
-  <label for="media"><b>Update media (image / video / audio)</b></label>
-  <input type="file" name="media" accept="image/*,video/*,audio/*">
+    .back-link:hover {
+      text-decoration: underline;
+    }
 
-  <% if (data.mediaFile && data.mediaType === 'image') { %>
-    <p><b>Current Media:</b></p>
-    <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Media" style="max-width: 200px; display: block; margin-bottom: 10px;">
-  <% } else if (data.mediaFile && data.mediaType === 'video') { %>
-    <p><b>Current Media:</b></p>
-    <video controls style="max-width: 100%; margin-bottom: 10px;">
-      <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
-      Your browser does not support the video tag.
-    </video>
-  <% } else if (data.mediaFile && data.mediaType === 'audio') { %>
-    <p><b>Current Media:</b></p>
-    <audio controls style="margin-bottom: 10px;">
-      <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
-      Your browser does not support the audio element.
-    </audio>
-  <% } %>
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
 
-  <input type="submit" value="Update" class="btn">
-</form>
+    input,
+    textarea,
+    select {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+
+    .btn {
+      background: #007bff;
+      color: #fff;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 16px;
+    }
+
+    .btn:hover {
+      background: #0056b3;
+    }
+
+    .btn-delete {
+      background: #dc3545;
+      padding: 10px 15px;
+      width: auto;
+    }
+
+    .btn-delete:hover {
+      background: #b52a37;
+    }
+
+    .markdown-hint {
+      background: #eef4ff;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 15px;
+    }
+
+    .media-preview img,
+    .media-preview video {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <div class="admin-header">
+      <a href="/dashboard" class="back-link">&larr; Back</a>
+
+      <!-- DELETE -->
+      <form action="/delete-post/<%= data._id %>?_method=DELETE" method="POST">
+        <button class="btn-delete btn">Delete</button>
+      </form>
+    </div>
+
+    <h2>Edit Post</h2>
+
+    <!-- Markdown hint -->
+    <div class="markdown-hint">
+      <b>Markdown supported:</b>
+      <code># Heading</code>
+      <code>## Subheading</code>
+      <code>* list</code>
+      <code>**bold**</code>
+    </div>
+
+    <form action="/edit-post/<%= data._id %>?_method=PUT" method="POST" enctype="multipart/form-data">
+
+      <!-- TITLE -->
+      <label>Post Title</label>
+      <input type="text" name="title" value="<%= data.title %>" required>
+
+      <!-- SLUG -->
+      <label>URL Slug</label>
+      <input type="text" name="slug" value="<%= data.slug %>">
+
+      <!-- CATEGORY -->
+      <label>Category</label>
+      <select name="category">
+        <option value="nodejs" <%= data.category === 'nodejs' ? 'selected' : '' %>>Node.js</option>
+        <option value="networking" <%= data.category === 'networking' ? 'selected' : '' %>>Networking</option>
+        <option value="business" <%= data.category === 'business' ? 'selected' : '' %>>Business Tech</option>
+        <option value="tutorials" <%= data.category === 'tutorials' ? 'selected' : '' %>>Tutorials</option>
+      </select>
+
+      <!-- EXCERPT -->
+      <label>Short Description (Excerpt)</label>
+      <textarea name="excerpt" rows="3"><%= data.excerpt %></textarea>
+
+      <!-- CONTENT -->
+      <label>Content</label>
+      <textarea name="body" rows="15" required><%= data.body %></textarea>
+
+      <!-- TAGS -->
+      <label>Tags</label>
+      <input type="text" name="tags" value="<%= data.tags ? data.tags.join(', ') : '' %>">
+
+      <!-- MEDIA -->
+      <label>Update Media</label>
+      <input type="file" name="media" accept="image/*,video/*,audio/*">
+
+      <!-- CURRENT MEDIA -->
+      <% if (data.mediaFile) { %>
+        <div class="media-preview">
+          <p><b>Current Media:</b></p>
+
+          <% if (data.mediaType === 'image') { %>
+            <img src="/uploads/images/<%= data.mediaFile %>">
+          <% } else if (data.mediaType === 'video') { %>
+            <video controls>
+              <source src="/uploads/videos/<%= data.mediaFile %>">
+            </video>
+          <% } else if (data.mediaType === 'audio') { %>
+            <audio controls>
+              <source src="/uploads/audio/<%= data.mediaFile %>">
+            </audio>
+          <% } %>
+        </div>
+      <% } %>
+
+      <!-- SEO -->
+      <label>SEO Title</label>
+      <input type="text" name="seoTitle" value="<%= data.seoTitle %>">
+
+      <label>Meta Description</label>
+      <textarea name="metaDescription" rows="3"><%= data.metaDescription %></textarea>
+
+      <!-- SUBMIT -->
+      <button class="btn">💾 Update Post</button>
+
+    </form>
+
+  </div>
+
+</body>
+</html>

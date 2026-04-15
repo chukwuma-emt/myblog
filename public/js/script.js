@@ -1,14 +1,19 @@
+document.addEventListener("DOMContentLoaded", function () {
+  console.log("JS Loaded ✅");
 
-  window.addEventListener('DOMContentLoaded', () => {
-    const menuToggle = document.getElementById('menuToggle');
-    const navMenu = document.getElementById('navMenu');
+  const btn = document.getElementById("menuBtn");
+  const nav = document.getElementById("navMenu");
 
-    if (menuToggle && navMenu) {
-      menuToggle.addEventListener('click', () => {
-        navMenu.classList.toggle('open');
-      });
-    } else {
-      console.warn('menuToggle or navMenu not found');
-    }
+  console.log("BTN:", btn);
+  console.log("NAV:", nav);
+
+  if (!btn || !nav) {
+    console.error("Menu elements not found ❌");
+    return;
+  }
+
+  btn.addEventListener("click", function () {
+    console.log("Menu clicked 🔥");
+    nav.classList.toggle("active");
   });
-
+});

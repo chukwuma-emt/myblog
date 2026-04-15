@@ -1,19 +1,14 @@
-<header class="site-header">
-  <div class="header-container">
-    <a href="/" class="logo">EM_INNOVATIONS</a>
+<header class="navbar">
+  <a href="/" class="logo">Ekolinc</a>
 
-    <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">&#9776;</button>
+  <!-- MOBILE BUTTON -->
+  <button id="menuBtn" class="menu-btn">☰</button>
 
-    <nav class="nav" id="navMenu">
-      <ul class="nav-links">
-        <li><a href="/" class="<%= isActiveRoute('/', currentRoute) %>">Home</a></li>
-        <li><a href="/about" class="<%= isActiveRoute('/about', currentRoute) %>">About</a></li>
-        <li><a href="/contact" class="<%= isActiveRoute('/contact', currentRoute) %>">Contact</a></li>
-        <li><a href="/admin" class="<%= isActiveRoute('/admin', currentRoute) %>">Sign In</a></li>
-      </ul>
-      <form action="/search" method="POST" role="search" class="search-form">
-        <input type="text" name="searchTerm" id="searchInput" placeholder="Search..." aria-label="Search">
-      </form>
-    </nav>
-  </div>
+  <!-- NAV -->
+  <nav id="navMenu" class="nav">
+    <a href="/">Home</a>
+    <a href="/about">About</a>
+    <a href="/contact">Contact</a>
+    <a href="/admin">Sign In</a>
+  </nav>
 </header>

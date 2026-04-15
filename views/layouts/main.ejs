@@ -2,44 +2,34 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Page Title -->
-  <title><%= locals.title || 'My Blog' %></title>
+  <title><%= locals.title || 'Ekolinc Blog' %></title>
 
-  <!-- Basic SEO Meta -->
-  <meta name="description" content="<%= locals.description || 'Welcome to my blog where I share insights on tech, development, and more.' %>">
-  <meta name="keywords" content="<%= locals.keywords || 'blog, tech, coding, development' %>">
-  <link rel="canonical" href="<%= locals.canonicalUrl || 'https://yourdomain.com' %>">
-
-  <!-- Open Graph / Facebook / WhatsApp -->
-  <meta property="og:type" content="article">
-  <meta property="og:title" content="<%= locals.ogTitle || locals.title || 'My Blog' %>">
-  <meta property="og:description" content="<%= locals.ogDescription || locals.description || 'Check out this blog post' %>">
-  <meta property="og:image" content="<%= locals.ogImage || '/img/default-post.jpg' %>">
-  <meta property="og:url" content="<%= locals.ogUrl || 'https://yourdomain.com' %>">
-
-  <!-- Styles and Scripts -->
-  <link rel="stylesheet" href="/css/style.css">
-  <script type="text/javascript" defer src="/js/script.js"></script>
+  <!-- MAIN CSS -->
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
+
 <body>
 
+  <!-- ===== HEADER (PARTIAL) ===== -->
+  <%- include('../partials/header.ejs') %>
+
+  <!-- ===== SEARCH ===== -->
   <div class="container">
-    <%- include('../partials/header.ejs') %>
     <%- include('../partials/search.ejs') %>
-
-    <main class="main"> 
-      <%- body %>
-    </main>
-
-    <%- include('../partials/footer.ejs') %>
   </div>
 
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main container">
+    <%- body %>
+  </main>
 
+  <!-- ===== FOOTER ===== -->
+  <%- include('../partials/footer.ejs') %>
 
-  <script src="/js/post-actions.js" defer></script>
+  <!-- ===== JAVASCRIPT (VERY IMPORTANT: AT BOTTOM) ===== -->
+  <script src="/js/script.js"></script>
 
 </body>
 </html>

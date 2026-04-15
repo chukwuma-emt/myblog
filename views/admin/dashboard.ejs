@@ -1,31 +1,181 @@
-<div class="post-dashboard-header">
-  <h2 class="dashboard-title">Posts</h2>
-  <a href="/add-post" class="add-post-button">+ Add New</a>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Posts Dashboard</title>
 
-<div class="admin-here">
-<div class="post-list">
-  <% data.forEach(post => { %>
-    <div class="post-item">
-      <div class="post-main">
-        <a href="/post/<%= post._id %>" class="post-title">
-          <%= post.title %> &nearr;
-        </a>
-        <div class="post-controls">
-          <a href="/edit-post/<%= post._id %>" class="btn-edit">Edit</a>
-          <form action="/delete-post/<%= post._id %>?_method=DELETE" method="POST" class="form-delete" onsubmit="return confirmDelete()">
-            <input type="submit" value="Delete" class="btn-delete">
-          </form>
-        </div>
-      </div>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    }
+
+    /* HEADER */
+    .post-dashboard-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .dashboard-title {
+      margin: 0;
+    }
+
+    .add-post-button {
+      background: #007bff;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 14px;
+      transition: 0.3s;
+    }
+
+    .add-post-button:hover {
+      background: #0056b3;
+    }
+
+    /* POST LIST */
+    .post-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .post-item {
+      border: 1px solid #eee;
+      border-radius: 8px;
+      padding: 15px;
+      background: #fafafa;
+      transition: 0.2s;
+    }
+
+    .post-item:hover {
+      background: #f1f5ff;
+    }
+
+    .post-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .post-title {
+      font-weight: bold;
+      text-decoration: none;
+      color: #333;
+    }
+
+    .post-title:hover {
+      color: #007bff;
+    }
+
+    /* ACTION BUTTONS */
+    .post-controls {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-edit {
+      background: #28a745;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 5px;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .btn-edit:hover {
+      background: #218838;
+    }
+
+    .btn-delete {
+      background: #dc3545;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn-delete:hover {
+      background: #b52a37;
+    }
+
+    .form-delete {
+      margin: 0;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 600px) {
+      .post-main {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <!-- HEADER -->
+    <div class="post-dashboard-header">
+      <h2 class="dashboard-title">Posts</h2>
+      <a href="/add-post" class="add-post-button">+ Add New</a>
     </div>
-  <% }) %>
-</div>
-</div>
 
+    <!-- POSTS -->
+    <div class="post-list">
+      <% data.forEach(post => { %>
+        <div class="post-item">
 
-<script>
+          <div class="post-main">
+            <a href="/post/<%= post.slug %>" class="post-title">
+              <%= post.title %> →
+            </a>
+
+            <div class="post-controls">
+              <a href="/edit-post/<%= post._id %>" class="btn-edit">Edit</a>
+
+              <form action="/delete-post/<%= post._id %>?_method=DELETE"
+                    method="POST"
+                    class="form-delete"
+                    onsubmit="return confirmDelete()">
+
+                <button type="submit" class="btn-delete">Delete</button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      <% }) %>
+    </div>
+
+  </div>
+
+  <script>
     function confirmDelete() {
-        return confirm ('are you sure you want to delete this post')
-        }
-</script>
+      return confirm('Are you sure you want to delete this post?');
+    }
+  </script>
+
+</body>
+</html>

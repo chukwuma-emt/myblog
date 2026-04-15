@@ -1,25 +1,118 @@
-<header class="header">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Header</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 25px;
+      background: #fff;
+      border-bottom: 1px solid #eee;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    /* LOGO */
+    .header__logo {
+      font-weight: bold;
+      font-size: 18px;
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    /* NAV */
+    .header__nav ul {
+      display: flex;
+      gap: 20px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .header__nav a {
+      text-decoration: none;
+      color: #333;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+
+    .header__nav a:hover {
+      color: #007bff;
+    }
+
+    /* LOGOUT BUTTON */
+    .header__button a {
+      text-decoration: none;
+      padding: 8px 14px;
+      background: #dc3545;
+      color: #fff;
+      border-radius: 5px;
+      font-size: 14px;
+      transition: 0.3s;
+    }
+
+    .header__button a:hover {
+      background: #b52a37;
+    }
+
+    /* ===== MOBILE ===== */
+    @media (max-width: 768px) {
+
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .header__nav ul {
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .header__button {
+        width: 100%;
+      }
+
+      .header__button a {
+        display: block;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="header">
+    
     <a href="/admin" class="header__logo">Admin Panel</a>
     
     <nav class="header__nav">
-        <ul>
-            <li>
-                <a href="/" class="">Home</a>
-            </li> <li>
-                <a href="/about" class="">About</a>
-            </li> <li>
-                <a href="/contact" class="">contact</a>
-            </li>
-        </ul>
-    
+      <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/about">About</a></li>
+        <li><a href="/contact">Contact</a></li>
+      </ul>
     </nav>
     
     <div class="header__button">
-        
-        <a href="/logout">
-             Logout
-        </a>
-    
+      <a href="/logout">Logout</a>
     </div>
     
-    </header>
+  </header>
+
+</body>
+</html>

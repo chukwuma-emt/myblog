@@ -1,18 +1,185 @@
-<a href="/dashboard">&larr; Back</a>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Post</title>
 
-<div class="admin-title">
-  <h2>Admin New Post</h2>
-</div>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+    }
 
-<form action="/add-post" method="POST" enctype="multipart/form-data">
-  <label for="title"><b>Title</b></label>
-  <input type="text" placeholder="Post Title" name="title" required>
+    .container {
+      max-width: 750px;
+      margin: auto;
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
 
-  <label for="body"><b>Content</b></label>
-  <textarea name="body" cols="50" rows="10" required></textarea>
+    .admin-title h2 {
+      margin-bottom: 5px;
+    }
 
-  <label for="media"><b>Upload media (image / video / audio)</b></label>
-  <input type="file" name="media" accept="image/*,video/*,audio/*">
+    .subtitle {
+      color: #666;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
 
-  <input type="submit" value="Add" class="btn">
-</form>
+    .back-link {
+      display: inline-block;
+      margin-bottom: 15px;
+      text-decoration: none;
+      color: #007bff;
+      font-size: 14px;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    form label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    .post-form input,
+    .post-form textarea,
+    .post-form select {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .post-form textarea {
+      resize: vertical;
+    }
+
+    small {
+      color: #888;
+      font-size: 12px;
+      display: block;
+      margin-top: -10px;
+      margin-bottom: 10px;
+    }
+
+    .btn {
+      background: #007bff;
+      color: #fff;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 16px;
+      transition: 0.3s;
+    }
+
+    .btn:hover {
+      background: #0056b3;
+    }
+
+    /* Markdown hint box */
+    .markdown-hint {
+      background: #eef4ff;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 15px;
+    }
+
+    .markdown-hint code {
+      background: #ddd;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 15px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="container">
+
+    <a href="/dashboard" class="back-link">&larr; Back</a>
+
+    <div class="admin-title">
+      <h2>Create New Post</h2>
+      <p class="subtitle">Write a high-quality, SEO-optimized blog post</p>
+    </div>
+
+    <!-- 🔥 Markdown Guide -->
+    <div class="markdown-hint">
+      <b>Tip:</b> You can use Markdown<br>
+      <code># Heading</code> <code>## Subheading</code> <code>* list</code> <code>**bold**</code>
+    </div>
+
+    <form action="/add-post" method="POST" enctype="multipart/form-data" class="post-form">
+
+      <!-- TITLE -->
+      <label>Post Title</label>
+      <input type="text" name="title" placeholder="e.g. How to Build a POS System with Node.js" required>
+
+      <!-- SLUG -->
+      <label>URL Slug</label>
+      <input type="text" name="slug" placeholder="e.g. build-pos-system-nodejs">
+      <small>This will be your URL (auto-generate from title if empty)</small>
+
+      <!-- CATEGORY -->
+      <label>Category</label>
+      <select name="category">
+        <option value="nodejs">Node.js</option>
+        <option value="networking">Networking</option>
+        <option value="business">Business Tech</option>
+        <option value="tutorials">Tutorials</option>
+      </select>
+
+      <!-- EXCERPT -->
+      <label>Short Description (Excerpt)</label>
+      <textarea name="excerpt" rows="3" placeholder="Short summary for homepage & SEO"></textarea>
+
+      <!-- CONTENT -->
+      <label>Content</label>
+      <textarea name="body" rows="15" placeholder="Write your blog using Markdown..." required></textarea>
+
+      <!-- TAGS -->
+      <label>Tags (comma separated)</label>
+      <input type="text" name="tags" placeholder="e.g. starlink, internet, mikrotik, nodejs">
+
+      <!-- MEDIA -->
+      <label>Upload Media</label>
+      <input type="file" name="media" accept="image/*,video/*,audio/*">
+
+      <!-- SEO TITLE -->
+      <label>SEO Title</label>
+      <input type="text" name="seoTitle" placeholder="Optimized title for Google">
+
+      <!-- META DESCRIPTION -->
+      <label>Meta Description</label>
+      <textarea name="metaDescription" rows="3" placeholder="Short description for Google search results"></textarea>
+
+      <!-- SUBMIT -->
+      <button type="submit" class="btn">🚀 Publish Post</button>
+
+    </form>
+
+  </div>
+
+</body>
+</html>

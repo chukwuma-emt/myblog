@@ -1,22 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In</title>
 
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+    }
 
-<h3 class="h3">Sign In</h3>
+    /* CENTER BOX */
+    .login-container {
+      max-width: 400px;
+      margin: 80px auto;
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    }
 
-<form action="/admin" method="POST">
+    /* TITLE */
+    .h3 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
 
-<label for="username"><b>Username</b></label>
-<input type="text" placeholder="Enter Username" name="username">
+    /* FORM */
+    form label {
+      display: block;
+      margin-top: 10px;
+      font-size: 14px;
+    }
 
-<label for="password"><b>Password</b></label>
-<input type="text" placeholder="Enter Password" name="password">
+    /* INPUT */
+    form input {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      margin-bottom: 15px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
 
-<input type="submit" value="login" class="btn">
+    /* FOCUS */
+    form input:focus {
+      border-color: #007bff;
+      outline: none;
+    }
 
-<% if (locals.error) { %>
-    <p style="color: red;"><%= locals.error %></p>
- <% } %>
+    /* BUTTON */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: #007bff;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
 
-</form>
+    .btn:hover {
+      background: #0056b3;
+    }
 
+    /* ERROR */
+    .error {
+      color: red;
+      font-size: 13px;
+      margin-top: 10px;
+      text-align: center;
+    }
 
- 
+    /* MOBILE */
+    @media (max-width: 480px) {
+      .login-container {
+        margin: 40px 15px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="login-container">
+
+    <h3 class="h3">Sign In</h3>
+
+    <form action="/admin" method="POST">
+
+      <label><b>Username</b></label>
+      <input type="text" name="username" placeholder="Enter Username" required>
+
+      <label><b>Password</b></label>
+      <input type="password" name="password" placeholder="Enter Password" required>
+
+      <button type="submit" class="btn">Login</button>
+
+      <% if (locals.error) { %>
+        <p class="error"><%= locals.error %></p>
+      <% } %>
+
+    </form>
+
+  </div>
+
+</body>
+</html>

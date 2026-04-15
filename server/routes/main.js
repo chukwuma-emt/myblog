@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
+const { marked } = require('marked'); // ✅ NEW
 
 // Homepage with pagination
 router.get('/', async (req, res) => {
@@ -34,36 +35,52 @@ router.get('/', async (req, res) => {
   }
 });
 
-// View single post with comments, views, and likes
+// View single post (🔥 FIXED MARKDOWN HERE)
 router.get('/post/:slug', async (req, res) => {
   try {
     const slug = req.params.slug;
     const post = await Post.findOne({ slug });
+
     if (!post) return res.status(404).send("Post not found");
+
+    // ✅ Convert Markdown → HTML
+    const htmlBody = marked(post.body || '');
 
     // Count views (session-based)
     if (!req.session.viewedPosts) req.session.viewedPosts = [];
+
     if (!req.session.viewedPosts.includes(post._id.toString())) {
       await Post.findByIdAndUpdate(post._id, { $inc: { views: 1 } });
       req.session.viewedPosts.push(post._id.toString());
     }
 
     // Load comments
-    const comments = await Comment.find({ postId: post._id }).sort({ createdAt: -1 });
+    const comments = await Comment.find({ postId: post._id })
+      .sort({ createdAt: -1 });
 
-    // Dynamic SEO-friendly metadata
-    const plainText = post.body.replace(/(<([^>]+)>)/gi, '');
+    // ✅ Clean text for SEO (remove markdown + HTML)
+    const plainText = post.body
+      .replace(/[#_*`>-]/g, '') // remove markdown symbols
+      .replace(/(<([^>]+)>)/gi, '') // remove HTML
+      .trim();
+
     const locals = {
       title: post.title,
-      description: plainText.length > 150 ? plainText.substring(0, 150) + '...' : plainText
+      description: plainText.length > 150
+        ? plainText.substring(0, 150) + '...'
+        : plainText
     };
 
     res.render('post', {
       locals,
-      data: post,
+      data: {
+        ...post.toObject(),
+        body: htmlBody // ✅ send HTML version
+      },
       comments,
       currentRoute: `/post/${slug}`
     });
+
   } catch (error) {
     console.error('Post view error:', error);
     res.status(500).send("Server Error");
@@ -78,15 +95,29 @@ router.post('/like/:id', async (req, res) => {
     if (!req.session.likedPosts) req.session.likedPosts = [];
 
     if (req.session.likedPosts.includes(postId)) {
-      return res.status(400).json({ success: false, message: 'Already liked' });
+      return res.status(400).json({
+        success: false,
+        message: 'Already liked'
+      });
     }
 
-    const post = await Post.findByIdAndUpdate(postId, { $inc: { likes: 1 } }, { new: true });
-    if (!post) return res.status(404).json({ success: false, message: 'Post not found' });
+    const post = await Post.findByIdAndUpdate(
+      postId,
+      { $inc: { likes: 1 } },
+      { new: true }
+    );
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: 'Post not found'
+      });
+    }
 
     req.session.likedPosts.push(postId);
 
     res.json({ success: true, likes: post.likes });
+
   } catch (err) {
     console.error('Like error:', err);
     res.status(500).json({ success: false });
@@ -99,7 +130,10 @@ router.post('/add', async (req, res) => {
     const { postId, username, text } = req.body;
 
     if (!postId || !username || !text || !username.trim() || !text.trim()) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+      return res.status(400).json({
+        success: false,
+        message: 'All fields are required.'
+      });
     }
 
     const comment = new Comment({
@@ -109,7 +143,9 @@ router.post('/add', async (req, res) => {
     });
 
     await comment.save();
+
     res.status(200).json({ success: true, comment });
+
   } catch (err) {
     console.error('Comment error:', err);
     res.status(500).json({ success: false });
@@ -148,6 +184,7 @@ router.post('/search', async (req, res) => {
       },
       currentRoute: '/search'
     });
+
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).send("Search error");
@@ -156,15 +193,11 @@ router.post('/search', async (req, res) => {
 
 // Static pages
 router.get('/about', (req, res) => {
-  res.render('about', {
-    currentRoute: '/about'
-  });
+  res.render('about', { currentRoute: '/about' });
 });
 
 router.get('/contact', (req, res) => {
-  res.render('contact', {
-    currentRoute: '/contact'
-  });
+  res.render('contact', { currentRoute: '/contact' });
 });
 
 module.exports = router;

@@ -6,11 +6,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const upload = require('../../middleware/upload');
 const slugify = require('slugify');
+const { marked } = require('marked'); // ✅ NEW
 
 const adminLayout = 'layouts/admin';
 const jwtSecret = process.env.JWT_SECRET;
 
-// Auth middleware
+// ================= AUTH =================
 const authMiddleware = (req, res, next) => {
   const token = req.cookies.token;
   if (!token) return res.status(401).json({ message: 'Unauthorized' });
@@ -25,23 +26,20 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-// GET: Admin login page
+// ================= LOGIN =================
 router.get('/admin', (req, res) => {
-  const locals = {
-    title: "Admin Login",
-    description: "Simple blog created with Node.js, Express, and MongoDB",
+  res.render('admin/index', {
+    layout: adminLayout,
     error: req.query.error
-  };
-  res.render('admin/index', { locals, layout: adminLayout, currentRoute: req.path });
+  });
 });
 
-// POST: Admin login logic
 router.post('/admin', async (req, res) => {
   const { username, password } = req.body;
 
-  // Super admin shortcut
   const ownerUsername = 'owner';
   const ownerPassword = 'supersecret123';
+
   if (username === ownerUsername && password === ownerPassword) {
     const token = jwt.sign({ role: 'owner' }, jwtSecret);
     res.cookie('token', token, { httpOnly: true });
@@ -61,6 +59,7 @@ router.post('/admin', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id, role: user.role }, jwtSecret);
     res.cookie('token', token, { httpOnly: true });
+
     res.redirect('/dashboard');
   } catch (err) {
     console.error(err);
@@ -68,163 +67,168 @@ router.post('/admin', async (req, res) => {
   }
 });
 
-// POST: Register user
-router.post('/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    try {
-      await User.create({ username, password: hashedPassword });
-      return res.redirect('/admin?error=Account created! Please login.');
-    } catch (err) {
-      if (err.code === 11000) {
-        return res.redirect('/admin?error=User already exists. Try logging in.');
-      }
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  } catch (err) {
-    console.error(err);
-    res.redirect('/admin?error=Registration failed');
-  }
-});
-
-// GET: Dashboard
+// ================= DASHBOARD =================
 router.get('/dashboard', authMiddleware, async (req, res) => {
-  try {
-    const locals = {
-      title: 'Dashboard',
-      description: 'Blog Admin Dashboard'
-    };
-    const data = await Post.find().sort({ createdAt: -1 });
+  const posts = await Post.find().sort({ createdAt: -1 });
 
-    res.render('admin/dashboard', {
-      locals,
-      data,
-      layout: adminLayout,
-      currentRoute: req.path
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Dashboard error');
-  }
-});
-
-// GET: Add Post
-router.get('/add-post', authMiddleware, (req, res) => {
-  const locals = {
-    title: 'Add Post',
-    description: 'Create a new blog post'
-  };
-  res.render('admin/add-post', {
-    locals,
+  res.render('admin/dashboard', {
     layout: adminLayout,
-    currentRoute: req.path
+    data: posts
   });
 });
 
-// POST: Add Post
-// POST: Add Post (supports image, video, audio)
+// ================= ADD POST PAGE =================
+router.get('/add-post', authMiddleware, (req, res) => {
+  res.render('admin/add-post', {
+    layout: adminLayout
+  });
+});
+
+// ================= CREATE POST =================
 router.post('/add-post', authMiddleware, upload.single('media'), async (req, res) => {
   try {
-    const { title, body } = req.body;
+    const {
+      title,
+      body,
+      slug,
+      category,
+      excerpt,
+      tags,
+      seoTitle,
+      metaDescription
+    } = req.body;
 
     const mediaFile = req.file ? req.file.filename : null;
-    const mediaType = req.file ? req.file.mimetype.split('/')[0] : null; // 'image', 'video', 'audio'
+    const mediaType = req.file ? req.file.mimetype.split('/')[0] : null;
 
-    let baseSlug = slugify(title, { lower: true, strict: true });
-    let slug = baseSlug;
+    let baseSlug = slug
+      ? slugify(slug, { lower: true, strict: true })
+      : slugify(title, { lower: true, strict: true });
+
+    let finalSlug = baseSlug;
     let counter = 1;
-    while (await Post.findOne({ slug })) {
-      slug = `${baseSlug}-${counter++}`;
+
+    while (await Post.findOne({ slug: finalSlug })) {
+      finalSlug = `${baseSlug}-${counter++}`;
     }
 
     const post = new Post({
       title,
-      body,
-      slug,
+      body, // ✅ store markdown as-is
+      slug: finalSlug,
+      category,
+      excerpt,
+      tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+      seoTitle,
+      metaDescription,
       mediaFile,
       mediaType
     });
 
     await post.save();
-    res.redirect(`/post/${slug}`);
+
+    res.redirect(`/post/${finalSlug}`);
   } catch (err) {
     console.error(err);
     res.status(500).send('Post creation error');
   }
 });
 
-
-// GET: Edit Post
-router.get('/edit-post/:id', authMiddleware, async (req, res) => {
+// ================= SHOW POST (🔥 FIXED HERE) =================
+router.get('/post/:slug', async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
-    const locals = {
-      title: 'Edit Post',
-      description: 'Edit your blog post'
-    };
-    res.render('admin/edit-post', {
-      locals,
-      data: post,
-      layout: adminLayout,
-      currentRoute: req.path
+    const post = await Post.findOne({ slug: req.params.slug });
+
+    if (!post) return res.status(404).send('Post not found');
+
+    // ✅ Convert Markdown → HTML
+    const htmlBody = marked(post.body);
+
+    // increment views
+    post.views = (post.views || 0) + 1;
+    await post.save();
+
+    res.render('post', {
+      data: {
+        ...post.toObject(),
+        body: htmlBody // ✅ send HTML instead
+      },
+      comments: []
     });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Edit page error');
+    res.status(500).send('Error loading post');
   }
 });
 
-// PUT: Edit Post (supports image, video, audio)
+// ================= EDIT PAGE =================
+router.get('/edit-post/:id', authMiddleware, async (req, res) => {
+  const post = await Post.findById(req.params.id);
+
+  res.render('admin/edit-post', {
+    layout: adminLayout,
+    data: post
+  });
+});
+
+// ================= UPDATE POST =================
 router.put('/edit-post/:id', authMiddleware, upload.single('media'), async (req, res) => {
   try {
-    const { title, body } = req.body;
-
-    const mediaFile = req.file ? req.file.filename : undefined;
-    const mediaType = req.file ? req.file.mimetype.split('/')[0] : undefined; // image, video, audio
-
-    let baseSlug = slugify(title, { lower: true, strict: true });
-    let slug = baseSlug;
-    let counter = 1;
-    while (await Post.findOne({ slug, _id: { $ne: req.params.id } })) {
-      slug = `${baseSlug}-${counter++}`;
-    }
-
-    const updatedPost = {
+    const {
       title,
       body,
       slug,
+      category,
+      excerpt,
+      tags,
+      seoTitle,
+      metaDescription
+    } = req.body;
+
+    let baseSlug = slug
+      ? slugify(slug, { lower: true, strict: true })
+      : slugify(title, { lower: true, strict: true });
+
+    let finalSlug = baseSlug;
+    let counter = 1;
+
+    while (await Post.findOne({ slug: finalSlug, _id: { $ne: req.params.id } })) {
+      finalSlug = `${baseSlug}-${counter++}`;
+    }
+
+    const updateData = {
+      title,
+      body,
+      slug: finalSlug,
+      category,
+      excerpt,
+      tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+      seoTitle,
+      metaDescription,
       updatedAt: Date.now()
     };
 
-    // Update media only if a new file is uploaded
-    if (mediaFile) {
-      updatedPost.mediaFile = mediaFile;
-      updatedPost.mediaType = mediaType;
+    if (req.file) {
+      updateData.mediaFile = req.file.filename;
+      updateData.mediaType = req.file.mimetype.split('/')[0];
     }
 
-    await Post.findByIdAndUpdate(req.params.id, updatedPost);
-    res.redirect(`/edit-post/${req.params.id}`);
+    await Post.findByIdAndUpdate(req.params.id, updateData);
+
+    res.redirect(`/post/${finalSlug}`);
   } catch (err) {
     console.error(err);
     res.status(500).send('Update error');
   }
 });
 
-
-// DELETE: Delete Post
+// ================= DELETE =================
 router.delete('/delete-post/:id', authMiddleware, async (req, res) => {
-  try {
-    await Post.findByIdAndDelete(req.params.id);
-    res.redirect('/dashboard');
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Delete error');
-  }
+  await Post.findByIdAndDelete(req.params.id);
+  res.redirect('/dashboard');
 });
 
-// GET: Logout
+// ================= LOGOUT =================
 router.get('/logout', (req, res) => {
   res.clearCookie('token');
   res.redirect('/admin');

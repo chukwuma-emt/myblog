@@ -4,55 +4,219 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= data.title %> | My Blog</title>
-  <link rel="stylesheet" href="/css/post.css">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 25px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
+    }
+
+    /* MEDIA */
+    .media-container {
+      margin-bottom: 20px;
+    }
+
+    .media-container img,
+    .media-container video {
+      width: 100%;
+      border-radius: 8px;
+    }
+
+    .media-container audio {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    /* TITLE */
+    h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    /* META */
+    .meta {
+      font-size: 13px;
+      color: #777;
+      margin-bottom: 10px;
+    }
+
+    /* LIKE BUTTON */
+    .like-section {
+      margin-bottom: 15px;
+    }
+
+    #likeBtn {
+      background: #ff4d6d;
+      border: none;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-left: 10px;
+      transition: 0.3s;
+    }
+
+    #likeBtn:hover {
+      background: #d93655;
+    }
+
+    /* ARTICLE (Markdown Styling) */
+    .article {
+      line-height: 1.8;
+      margin-top: 20px;
+      font-size: 15px;
+    }
+
+    .article h1,
+    .article h2,
+    .article h3 {
+      margin-top: 20px;
+    }
+
+    .article p {
+      margin: 10px 0;
+    }
+
+    .article ul {
+      padding-left: 20px;
+    }
+
+    .article li {
+      margin-bottom: 5px;
+    }
+
+    .article code {
+      background: #eee;
+      padding: 3px 6px;
+      border-radius: 4px;
+    }
+
+    /* BACK LINK */
+    .back-link {
+      display: inline-block;
+      margin-top: 20px;
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    /* COMMENTS */
+    .comments-section {
+      margin-top: 40px;
+    }
+
+    .comments-section h3 {
+      margin-bottom: 15px;
+    }
+
+    .comment {
+      border-bottom: 1px solid #eee;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+    }
+
+    .comment strong {
+      color: #007bff;
+    }
+
+    /* FORM */
+    #commentForm input,
+    #commentForm textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    #commentForm button {
+      padding: 10px 15px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #commentForm button:hover {
+      background: #0056b3;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      .container {
+        margin: 20px;
+        padding: 15px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-  <div class="container" style="max-width: 800px; margin: auto; padding: 20px;">
+  <div class="container">
 
-    <!-- ✅ Media Display -->
-    <div class="media-container" style="margin-bottom: 20px;">
+    <!-- MEDIA -->
+    <div class="media-container">
       <% if (data.mediaType === 'image') { %>
-        <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Image" style="max-width: 100%; border-radius: 8px;">
+        <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Image">
       <% } else if (data.mediaType === 'video') { %>
-        <video controls style="max-width: 100%; border-radius: 8px;">
+        <video controls>
           <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
-          Your browser does not support the video tag.
         </video>
       <% } else if (data.mediaType === 'audio') { %>
-        <audio controls style="width: 100%; margin-top: 10px;">
+        <audio controls>
           <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
-          Your browser does not support the audio element.
         </audio>
       <% } %>
     </div>
 
-    <!-- ✅ Post Title -->
+    <!-- TITLE -->
     <h1><%= data.title %></h1>
 
-    <!-- ✅ Optional: Show slug and date -->
-    <p>
-      <small><strong>Slug:</strong> <%= data.slug %></small><br>
-      <small><strong>Date:</strong> <%= new Date(data.createdAt).toLocaleString() %></small>
-    </p>
+    <!-- META -->
+    <div class="meta">
+      Slug: <%= data.slug %> |
+      Date: <%= new Date(data.createdAt).toLocaleString() %>
+    </div>
 
-    <!-- ✅ Post Meta: Views and Likes -->
-    <p>
-      <strong>Views:</strong> <%= data.views || 0 %> &nbsp;|&nbsp;
-      <strong>Likes:</strong> <span id="likeCount"><%= data.likes || 0 %></span>
-      <button id="likeBtn" data-postid="<%= data._id %>">❤️ Like</button>
-    </p>
+    <!-- VIEWS + LIKES -->
+    <div class="like-section">
+      👁️ <%= data.views || 0 %> views |
+      ❤️ <span id="likeCount"><%= data.likes || 0 %></span>
+      <button id="likeBtn" data-postid="<%= data._id %>">Like</button>
+    </div>
 
-    <!-- ✅ Post Body -->
-    <article class="article" style="line-height: 1.7;">
-      <%= data.body %>
+    <!-- BODY (IMPORTANT FIX HERE) -->
+    <article class="article">
+      <%- data.body %>
     </article>
 
-    <!-- ✅ Back to Blog List -->
-    <p><a href="/">← Back to Blog List</a></p>
+    <!-- BACK -->
+    <a href="/" class="back-link">← Back to Blog</a>
 
-    <!-- ✅ Comments Section -->
-    <section class="comments-section" style="margin-top: 40px;">
+    <!-- COMMENTS -->
+    <section class="comments-section">
       <h3>Comments</h3>
 
       <div id="commentList">
@@ -60,17 +224,17 @@
           <p>No comments yet. Be the first to comment!</p>
         <% } else { %>
           <% comments.forEach(comment => { %>
-            <div class="comment" style="border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 5px;">
+            <div class="comment">
               <strong><%= comment.username %>:</strong> <%= comment.text %>
             </div>
           <% }) %>
         <% } %>
       </div>
 
-      <form id="commentForm" style="margin-top: 20px;">
+      <form id="commentForm">
         <input type="hidden" id="postId" name="postId" value="<%= data._id %>">
-        <input type="text" id="username" name="username" placeholder="Your name" required style="display: block; margin-bottom: 10px; width: 100%;">
-        <textarea id="commentText" name="text" placeholder="Write a comment..." required style="width: 100%; margin-bottom: 10px;"></textarea>
+        <input type="text" id="username" name="username" placeholder="Your name" required>
+        <textarea id="commentText" name="text" placeholder="Write a comment..." required></textarea>
         <button type="submit">Post Comment</button>
       </form>
     </section>
