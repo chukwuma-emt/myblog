@@ -25,6 +25,13 @@
   <!-- POST HEADER -->
   <div class="post-header">
     <h1><%= data.title %></h1>
+    <% if (data.tags && data.tags.length) { %>
+      <div class="tag-list" style="margin-bottom:12px;">
+        <% data.tags.forEach(tag => { %>
+          <a href="/tag/<%= tag %>" class="tag">#<%= tag %></a>
+        <% }) %>
+      </div>
+    <% } %>
     <div class="post-meta-bar">
       <span class="meta-item">
         📅 <%= new Date(data.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) %>
@@ -77,5 +84,29 @@
   </section>
 
 </div>
+
+<!-- RELATED POSTS -->
+<% if (related && related.length) { %>
+<section class="related-posts">
+  <h3>Related Posts</h3>
+  <div class="related-grid">
+    <% related.forEach(post => { %>
+      <a href="/post/<%= post.slug %>" class="related-card">
+        <div class="related-thumb">
+          <% if (post.mediaType === 'image' && post.mediaFile) { %>
+            <img src="/uploads/images/<%= post.mediaFile %>" alt="<%= post.title %>" loading="lazy">
+          <% } else { %>
+            <div class="related-thumb-placeholder">📝</div>
+          <% } %>
+        </div>
+        <div class="related-info">
+          <p class="related-title"><%= post.title %></p>
+          <span class="related-date"><%= new Date(post.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></span>
+        </div>
+      </a>
+    <% }) %>
+  </div>
+</section>
+<% } %>
 
 <script src="/js/post-actions.js"></script>

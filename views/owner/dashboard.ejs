@@ -24,6 +24,28 @@
   </form>
 </div>
 
+<!-- SUBSCRIBERS -->
+<div class="admin-page-header" style="margin-bottom:16px;">
+  <h1 style="font-size:1.1rem;">Newsletter Subscribers (<%= subscribers.length %>)</h1>
+</div>
+
+<div class="admin-card" style="margin-bottom:32px;">
+  <% if (subscribers.length === 0) { %>
+    <p style="color:var(--muted);font-size:0.9rem;">No subscribers yet.</p>
+  <% } else { %>
+    <div class="subscriber-list">
+      <% subscribers.forEach(sub => { %>
+        <div class="subscriber-item">
+          <span class="subscriber-email">📧 <%= sub.email %></span>
+          <span style="color:var(--muted);font-size:0.8rem;">
+            <%= new Date(sub.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %>
+          </span>
+        </div>
+      <% }) %>
+    </div>
+  <% } %>
+</div>
+
 <!-- USER LIST -->
 <div class="admin-page-header" style="margin-bottom:16px;">
   <h1 style="font-size:1.1rem;">Admin Users (<%= users.length %>)</h1>

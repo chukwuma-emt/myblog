@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Post = require('../models/Post');
 const Comment = require('../models/Comment');
+const Subscriber = require('../models/Subscriber');
 const { marked } = require('marked');
 
 // ===============================
@@ -35,7 +36,8 @@ router.get('/', async (req, res) => {
       locals: {
         ...locals,
         ogType: 'website',
-        noindex: page > 1
+        noindex: page > 1,
+        subscribed: req.query.subscribed || null
       },
       data: posts,
       current: page,
@@ -75,6 +77,14 @@ router.get('/post/:slug', async (req, res) => {
     const comments = await Comment.find({ postId: post._id })
       .sort({ createdAt: -1 });
 
+    // 🔗 Related posts (same tags, exclude current)
+    const related = post.tags && post.tags.length
+      ? await Post.find({ _id: { $ne: post._id }, tags: { $in: post.tags } })
+          .sort({ createdAt: -1 })
+          .limit(3)
+          .select('title slug mediaFile mediaType createdAt tags')
+      : [];
+
     // 🔥 SEO clean description
     const plainText = post.body
       .replace(/[#_*`>-]/g, '')
@@ -101,6 +111,7 @@ router.get('/post/:slug', async (req, res) => {
         body: htmlBody
       },
       comments,
+      related,
       currentRoute: `/post/${slug}`
     });
 
@@ -220,6 +231,53 @@ router.post('/search', async (req, res) => {
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).send("Search error");
+  }
+});
+
+
+// ===============================
+// 🏷️ TAG FILTER PAGE
+// ===============================
+router.get('/tag/:tag', async (req, res) => {
+  try {
+    const tag = req.params.tag;
+    const posts = await Post.find({ tags: tag }).sort({ createdAt: -1 });
+
+    res.render('tag', {
+      locals: {
+        title: `Posts tagged "${tag}"`,
+        description: `All Ekolinc posts tagged with ${tag}.`,
+        noindex: true
+      },
+      posts,
+      tag,
+      currentRoute: `/tag/${tag}`
+    });
+  } catch (error) {
+    console.error('Tag page error:', error);
+    res.status(500).send('Server Error');
+  }
+});
+
+
+// ===============================
+// 📧 NEWSLETTER SUBSCRIBE
+// ===============================
+router.post('/subscribe', async (req, res) => {
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    if (!email) return res.redirect('/?subscribed=error');
+
+    await Subscriber.findOneAndUpdate(
+      { email },
+      { email },
+      { upsert: true, new: true }
+    );
+
+    res.redirect('/?subscribed=1');
+  } catch (error) {
+    console.error('Subscribe error:', error);
+    res.redirect('/?subscribed=error');
   }
 });
 
