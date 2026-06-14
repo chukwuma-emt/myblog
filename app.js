@@ -31,13 +31,13 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://www.googletagmanager.com", (req, res) => `'nonce-${res.locals.cspNonce}'`],
-      scriptSrcAttr: ["'unsafe-inline'"], // allows onsubmit/onclick in admin forms
+      scriptSrc: ["'self'", "https://www.googletagmanager.com", "https://pagead2.googlesyndication.com", "https://adservice.google.com", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+      scriptSrcAttr: ["'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://www.google-analytics.com", "https://analytics.google.com"],
-      frameSrc: ["'none'"],
+      connectSrc: ["'self'", "https://www.google-analytics.com", "https://analytics.google.com", "https://pagead2.googlesyndication.com"],
+      frameSrc: ["https://googleads.g.doubleclick.net", "https://tpc.googlesyndication.com", "https://www.google.com"],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
     }
