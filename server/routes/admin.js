@@ -29,7 +29,7 @@ const authMiddleware = (req, res, next) => {
 // ================= LOGIN =================
 router.get('/admin', (req, res) => {
   res.render('admin/index', {
-    layout: adminLayout,
+    layout: false,
     error: req.query.error
   });
 });
@@ -131,33 +131,6 @@ router.post('/add-post', authMiddleware, upload.single('media'), async (req, res
   } catch (err) {
     console.error(err);
     res.status(500).send('Post creation error');
-  }
-});
-
-// ================= SHOW POST (🔥 FIXED HERE) =================
-router.get('/post/:slug', async (req, res) => {
-  try {
-    const post = await Post.findOne({ slug: req.params.slug });
-
-    if (!post) return res.status(404).send('Post not found');
-
-    // ✅ Convert Markdown → HTML
-    const htmlBody = marked(post.body);
-
-    // increment views
-    post.views = (post.views || 0) + 1;
-    await post.save();
-
-    res.render('post', {
-      data: {
-        ...post.toObject(),
-        body: htmlBody // ✅ send HTML instead
-      },
-      comments: []
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error loading post');
   }
 });
 

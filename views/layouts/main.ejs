@@ -4,31 +4,114 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title><%= locals.title || 'Ekolinc Blog' %></title>
+  <!-- Primary Meta -->
+  <title><%= locals.title ? locals.title + ' | Ekolinc' : 'Ekolinc — Web Dev Tutorials & Projects' %></title>
+  <meta name="description" content="<%= locals.description || 'Ekolinc — web development tutorials, real-world projects, and insights by Chukwuma.' %>">
+  <meta name="author" content="Chukwuma">
+  <meta name="robots" content="<%= locals.noindex ? 'noindex, follow' : 'index, follow' %>">
+  <meta name="theme-color" content="#2563eb">
+  <meta property="og:locale" content="en_US">
 
-  <!-- MAIN CSS -->
+  <!-- Canonical URL -->
+  <link rel="canonical" href="<%= siteUrl %><%= currentRoute || '/' %>">
+
+  <!-- Open Graph (Facebook, LinkedIn, Google) -->
+  <meta property="og:site_name" content="Ekolinc">
+  <meta property="og:type" content="<%= locals.ogType || 'website' %>">
+  <meta property="og:title" content="<%= locals.title ? locals.title + ' | Ekolinc' : 'Ekolinc Blog' %>">
+  <meta property="og:description" content="<%= locals.description || 'Web development tutorials and projects by Chukwuma.' %>">
+  <meta property="og:url" content="<%= siteUrl %><%= currentRoute || '/' %>">
+  <% if (locals.ogImage) { %>
+  <meta property="og:image" content="<%= siteUrl %>/uploads/images/<%= locals.ogImage %>">
+  <meta property="og:image:alt" content="<%= locals.title || 'Ekolinc' %>">
+  <% } %>
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="<%= locals.ogImage ? 'summary_large_image' : 'summary' %>">
+  <meta name="twitter:title" content="<%= locals.title ? locals.title + ' | Ekolinc' : 'Ekolinc Blog' %>">
+  <meta name="twitter:description" content="<%= locals.description || 'Web development tutorials and projects by Chukwuma.' %>">
+  <% if (locals.ogImage) { %>
+  <meta name="twitter:image" content="<%= siteUrl %>/uploads/images/<%= locals.ogImage %>">
+  <% } %>
+
+  <!-- JSON-LD Structured Data -->
+  <% if (locals.ogType === 'article') { %>
+  <script type="application/ld+json" nonce="<%= cspNonce %>">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": <%- JSON.stringify(locals.title || '') %>,
+    "description": <%- JSON.stringify(locals.description || '') %>,
+    "url": <%- JSON.stringify(siteUrl + '/post/' + (locals.slug || '')) %>,
+    "datePublished": "<%= locals.publishedAt ? new Date(locals.publishedAt).toISOString() : '' %>",
+    "dateModified": "<%= locals.modifiedAt ? new Date(locals.modifiedAt).toISOString() : '' %>",
+    "author": {
+      "@type": "Person",
+      "name": "Chukwuma",
+      "url": <%- JSON.stringify(siteUrl + '/about') %>
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Ekolinc",
+      "url": <%- JSON.stringify(siteUrl) %>
+    }
+    <% if (locals.ogImage) { %>,
+    "image": <%- JSON.stringify(siteUrl + '/uploads/images/' + locals.ogImage) %>
+    <% } %>
+  }
+  </script>
+  <script type="application/ld+json" nonce="<%= cspNonce %>">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": <%- JSON.stringify(siteUrl + '/') %> },
+      { "@type": "ListItem", "position": 2, "name": <%- JSON.stringify(locals.title || '') %>, "item": <%- JSON.stringify(siteUrl + '/post/' + (locals.slug || '')) %> }
+    ]
+  }
+  </script>
+  <% } else { %>
+  <script type="application/ld+json" nonce="<%= cspNonce %>">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Ekolinc Blog",
+    "url": <%- JSON.stringify(siteUrl) %>,
+    "description": "Web development tutorials, real-world projects, and insights by Chukwuma.",
+    "author": {
+      "@type": "Person",
+      "name": "Chukwuma"
+    }
+  }
+  </script>
+  <% } %>
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Main CSS -->
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 
 <body>
 
-  <!-- ===== HEADER (PARTIAL) ===== -->
+  <!-- HEADER -->
   <%- include('../partials/header.ejs') %>
 
-  <!-- ===== SEARCH ===== -->
-  <div class="container">
-    <%- include('../partials/search.ejs') %>
-  </div>
+  <!-- SEARCH BAR -->
+  <%- include('../partials/search.ejs') %>
 
-  <!-- ===== MAIN CONTENT ===== -->
-  <main class="main container">
+  <!-- MAIN CONTENT -->
+  <main>
     <%- body %>
   </main>
 
-  <!-- ===== FOOTER ===== -->
+  <!-- FOOTER -->
   <%- include('../partials/footer.ejs') %>
 
-  <!-- ===== JAVASCRIPT (VERY IMPORTANT: AT BOTTOM) ===== -->
+  <!-- MOBILE MENU SCRIPT -->
   <script src="/js/script.js"></script>
 
 </body>

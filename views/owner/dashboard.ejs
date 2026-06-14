@@ -1,205 +1,68 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Owner Dashboard</title>
+<div class="admin-page-header">
+  <h1>Owner Dashboard</h1>
+  <a href="/dashboard" class="btn-admin" style="background:var(--surface);color:var(--text);border:1px solid var(--border);">← Posts</a>
+</div>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fa;
-      margin: 0;
-      padding: 20px;
-    }
+<!-- REGISTER NEW USER -->
+<div class="admin-card" style="margin-bottom:24px;">
+  <p class="form-section" style="margin-bottom:20px;">Register New Admin User</p>
 
-    .container {
-      max-width: 900px;
-      margin: auto;
-      background: #fff;
-      padding: 25px;
-      border-radius: 10px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-    }
-
-    h2 {
-      margin-bottom: 20px;
-    }
-
-    h3 {
-      margin-top: 20px;
-      margin-bottom: 10px;
-    }
-
-    /* FORM */
-    form label {
-      display: block;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-
-    form input {
-      width: 100%;
-      padding: 10px;
-      margin: 8px 0 15px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
-
-    .btn {
-      width: 100%;
-      padding: 12px;
-      background: #007bff;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 15px;
-    }
-
-    .btn:hover {
-      background: #0056b3;
-    }
-
-    /* USER LIST */
-    .user-list {
-      margin-top: 30px;
-    }
-
-    .user-card {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 15px;
-      border: 1px solid #eee;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      background: #fafafa;
-    }
-
-    .user-info strong {
-      display: block;
-    }
-
-    .user-info small {
-      color: #777;
-    }
-
-    /* ACTIONS */
-    .user-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .user-actions form {
-      margin: 0;
-    }
-
-    .user-actions button {
-      border: none;
-      padding: 8px 12px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 13px;
-      color: #fff;
-    }
-
-    .restrict {
-      background: #ffc107;
-      color: #000;
-    }
-
-    .unrestrict {
-      background: #28a745;
-    }
-
-    .delete {
-      background: #dc3545;
-    }
-
-    .restrict:hover {
-      background: #e0a800;
-    }
-
-    .unrestrict:hover {
-      background: #218838;
-    }
-
-    .delete:hover {
-      background: #b52a37;
-    }
-
-    /* RESPONSIVE */
-    @media (max-width: 600px) {
-      .user-card {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-      }
-    }
-  </style>
-</head>
-
-<body>
-
-  <div class="container">
-
-    <h2>Owner Dashboard</h2>
-
-    <!-- REGISTER -->
-    <h3>Register New User</h3>
-    <form action="/register" method="POST">
-
-      <label>Username</label>
-      <input type="text" name="username" placeholder="Enter Username" required>
-
-      <label>Password</label>
-      <input type="password" name="password" placeholder="Enter Password" required>
-
-      <button type="submit" class="btn">Register</button>
-
-    </form>
-
-    <!-- USER LIST -->
-    <div class="user-list">
-      <% users.forEach(user => { %>
-        <div class="user-card">
-
-          <div class="user-info">
-            <strong><%= user.username %></strong>
-            <small><%= user.role %></small>
-          </div>
-
-          <div class="user-actions">
-
-            <% if (user.role === 'user') { %>
-              <form action="/owner/restrict/<%= user._id %>" method="POST">
-                <button class="restrict">Restrict</button>
-              </form>
-            <% } else { %>
-              <form action="/owner/unrestrict/<%= user._id %>" method="POST">
-                <button class="unrestrict">Unrestrict</button>
-              </form>
-            <% } %>
-
-            <form action="/owner/delete/<%= user._id %>" method="POST" onsubmit="return confirmDelete()">
-              <button class="delete">Delete</button>
-            </form>
-
-          </div>
-
-        </div>
-      <% }) %>
+  <form action="/owner/register" method="POST" class="admin-form">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="form-field">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="Enter username" required>
+      </div>
+      <div class="form-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Enter password" required>
+      </div>
     </div>
+    <div>
+      <button type="submit" class="btn-admin">Register User</button>
+    </div>
+  </form>
+</div>
 
-  </div>
+<!-- USER LIST -->
+<div class="admin-page-header" style="margin-bottom:16px;">
+  <h1 style="font-size:1.1rem;">Admin Users (<%= users.length %>)</h1>
+</div>
 
-  <script>
-    function confirmDelete() {
-      return confirm('Are you sure you want to delete this user?');
-    }
-  </script>
+<div class="user-list">
+  <% if (users.length === 0) { %>
+    <p style="color:var(--muted);font-size:0.9rem;">No users registered yet.</p>
+  <% } %>
 
-</body>
-</html>
+  <% users.forEach(user => { %>
+    <div class="user-card">
+      <div class="user-info">
+        <strong>
+          <%= user.username %>
+          <span class="badge <%= user.role === 'restricted' ? 'restricted' : 'active' %>">
+            <%= user.role %>
+          </span>
+        </strong>
+        <small>Registered user</small>
+      </div>
+
+      <div class="user-actions">
+        <% if (user.role !== 'restricted') { %>
+          <form action="/owner/restrict/<%= user._id %>" method="POST" style="margin:0">
+            <button type="submit" class="btn-admin sm warning">Restrict</button>
+          </form>
+        <% } else { %>
+          <form action="/owner/unrestrict/<%= user._id %>" method="POST" style="margin:0">
+            <button type="submit" class="btn-admin sm success">Unrestrict</button>
+          </form>
+        <% } %>
+
+        <form action="/owner/delete/<%= user._id %>" method="POST"
+              style="margin:0"
+              onsubmit="return confirm('Delete user <%= user.username %>?')">
+          <button type="submit" class="btn-admin sm danger">Delete</button>
+        </form>
+      </div>
+    </div>
+  <% }) %>
+</div>

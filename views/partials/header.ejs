@@ -1,14 +1,12 @@
 <header class="navbar">
   <a href="/" class="logo">Ekolinc</a>
 
-  <!-- MOBILE BUTTON -->
-  <button id="menuBtn" class="menu-btn">☰</button>
+  <button id="menuBtn" class="menu-btn" aria-label="Toggle menu">&#9776;</button>
 
-  <!-- NAV -->
   <nav id="navMenu" class="nav">
-    <a href="/">Home</a>
-    <a href="/about">About</a>
-    <a href="/contact">Contact</a>
+    <a href="/" class="<%= currentRoute === '/' ? 'active' : '' %>">Home</a>
+    <a href="/about" class="<%= currentRoute === '/about' ? 'active' : '' %>">About</a>
+    <a href="/contact" class="<%= currentRoute === '/contact' ? 'active' : '' %>">Contact</a>
     <a href="/admin">Sign In</a>
   </nav>
 </header>

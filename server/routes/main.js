@@ -10,8 +10,8 @@ const { marked } = require('marked');
 router.get('/', async (req, res) => {
   try {
     const locals = {
-      title: "Node.js Blog",
-      description: "Simple blog created with Node.js, Express, and MongoDB"
+      title: "Web Dev Tutorials & Projects by Chukwuma",
+      description: "Ekolinc covers Node.js, MongoDB, Express, and full-stack web development tutorials, real-world projects, and business tech insights."
     };
 
     const perPage = 10;
@@ -32,7 +32,11 @@ router.get('/', async (req, res) => {
     }));
 
     res.render('index', {
-      locals,
+      locals: {
+        ...locals,
+        ogType: 'website',
+        noindex: page > 1
+      },
       data: posts,
       current: page,
       nextPage: hasNextPage ? page + 1 : null,
@@ -77,18 +81,24 @@ router.get('/post/:slug', async (req, res) => {
       .replace(/(<([^>]+)>)/gi, '')
       .trim();
 
+    const description = post.metaDescription ||
+      (plainText.length > 160 ? plainText.substring(0, 160) + '...' : plainText);
+
     const locals = {
-      title: post.title,
-      description: plainText.length > 150
-        ? plainText.substring(0, 150) + '...'
-        : plainText
+      title: post.seoTitle || post.title,
+      description,
+      ogType: 'article',
+      ogImage: post.mediaType === 'image' ? post.mediaFile : null,
+      publishedAt: post.createdAt,
+      modifiedAt: post.updatedAt,
+      slug: post.slug
     };
 
     res.render('post', {
       locals,
       data: {
         ...post.toObject(),
-        body: htmlBody // ✅ HTML version
+        body: htmlBody
       },
       comments,
       currentRoute: `/post/${slug}`
@@ -218,11 +228,23 @@ router.post('/search', async (req, res) => {
 // 📄 STATIC PAGES
 // ===============================
 router.get('/about', (req, res) => {
-  res.render('about', { currentRoute: '/about' });
+  res.render('about', {
+    currentRoute: '/about',
+    locals: {
+      title: 'About Chukwuma',
+      description: 'Learn about Chukwuma — a full-stack web developer from Nigeria building Node.js, MongoDB, and Express applications, tutorials, and real-world software systems.'
+    }
+  });
 });
 
 router.get('/contact', (req, res) => {
-  res.render('contact', { currentRoute: '/contact' });
+  res.render('contact', {
+    currentRoute: '/contact',
+    locals: {
+      title: 'Contact',
+      description: 'Get in touch with Chukwuma for web development collaboration, tutorials, or project inquiries.'
+    }
+  });
 });
 
 

@@ -3,112 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign In</title>
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fa;
-      margin: 0;
-    }
-
-    /* CENTER BOX */
-    .login-container {
-      max-width: 400px;
-      margin: 80px auto;
-      background: #fff;
-      padding: 25px;
-      border-radius: 10px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-    }
-
-    /* TITLE */
-    .h3 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    /* FORM */
-    form label {
-      display: block;
-      margin-top: 10px;
-      font-size: 14px;
-    }
-
-    /* INPUT */
-    form input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 6px;
-      margin-bottom: 15px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 14px;
-    }
-
-    /* FOCUS */
-    form input:focus {
-      border-color: #007bff;
-      outline: none;
-    }
-
-    /* BUTTON */
-    .btn {
-      width: 100%;
-      padding: 12px;
-      background: #007bff;
-      border: none;
-      color: #fff;
-      font-size: 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: 0.3s;
-    }
-
-    .btn:hover {
-      background: #0056b3;
-    }
-
-    /* ERROR */
-    .error {
-      color: red;
-      font-size: 13px;
-      margin-top: 10px;
-      text-align: center;
-    }
-
-    /* MOBILE */
-    @media (max-width: 480px) {
-      .login-container {
-        margin: 40px 15px;
-      }
-    }
-  </style>
+  <title>Sign In | Ekolinc Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/admin.css">
 </head>
-
 <body>
 
-  <div class="login-container">
+<div class="login-page">
+  <div class="login-box">
 
-    <h3 class="h3">Sign In</h3>
+    <a href="/" class="login-logo">Ekolinc</a>
+    <h2>Admin Sign In</h2>
+    <p class="login-subtitle">Enter your credentials to access the dashboard</p>
 
-    <form action="/admin" method="POST">
+    <form action="/admin" method="POST" class="login-form">
 
-      <label><b>Username</b></label>
-      <input type="text" name="username" placeholder="Enter Username" required>
+      <div class="form-field">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" placeholder="Enter username" required autocomplete="username">
+      </div>
 
-      <label><b>Password</b></label>
-      <input type="password" name="password" placeholder="Enter Password" required>
+      <div class="form-field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Enter password" required autocomplete="current-password">
+      </div>
 
-      <button type="submit" class="btn">Login</button>
+      <button type="submit" class="btn-admin" style="width:100%;justify-content:center;padding:12px;">
+        Sign In
+      </button>
 
       <% if (locals.error) { %>
-        <p class="error"><%= locals.error %></p>
+        <p class="error-msg"><%= locals.error %></p>
       <% } %>
 
     </form>
 
   </div>
+</div>
 
 </body>
 </html>

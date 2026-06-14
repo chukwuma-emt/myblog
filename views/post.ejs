@@ -1,246 +1,81 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><%= data.title %> | My Blog</title>
+<div class="post-page">
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f7fa;
-      margin: 0;
-      padding: 0;
-      color: #333;
-    }
+  <!-- BACK LINK -->
+  <a href="/" class="back-link">← Back to Blog</a>
 
-    .container {
-      max-width: 800px;
-      margin: 40px auto;
-      padding: 25px;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.05);
-    }
+  <!-- MEDIA -->
+  <% if (data.mediaType === 'image') { %>
+    <div class="post-media">
+      <img src="/uploads/images/<%= data.mediaFile %>" alt="<%= data.title %>" loading="lazy">
+    </div>
+  <% } else if (data.mediaType === 'video') { %>
+    <div class="post-media">
+      <video controls>
+        <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
+      </video>
+    </div>
+  <% } else if (data.mediaType === 'audio') { %>
+    <div class="post-media">
+      <audio controls>
+        <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
+      </audio>
+    </div>
+  <% } %>
 
-    /* MEDIA */
-    .media-container {
-      margin-bottom: 20px;
-    }
+  <!-- POST HEADER -->
+  <div class="post-header">
+    <h1><%= data.title %></h1>
+    <div class="post-meta-bar">
+      <span class="meta-item">
+        📅 <%= new Date(data.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) %>
+      </span>
+      <span class="meta-item">👁 <%= data.views || 0 %> views</span>
+      <span class="meta-item">
+        ❤️ <span id="likeCount"><%= data.likes || 0 %></span> likes
+      </span>
+    </div>
+  </div>
 
-    .media-container img,
-    .media-container video {
-      width: 100%;
-      border-radius: 8px;
-    }
+  <!-- LIKE SECTION -->
+  <div class="like-section">
+    <span>Found this helpful?</span>
+    <button id="likeBtn" data-postid="<%= data._id %>">❤️ Like this post</button>
+  </div>
 
-    .media-container audio {
-      width: 100%;
-      margin-top: 10px;
-    }
+  <!-- ARTICLE BODY -->
+  <article class="article">
+    <%- data.body %>
+  </article>
 
-    /* TITLE */
-    h1 {
-      font-size: 28px;
-      margin-bottom: 10px;
-    }
+  <!-- COMMENTS -->
+  <section class="comments-section">
+    <h3>💬 Comments (<%= comments.length %>)</h3>
 
-    /* META */
-    .meta {
-      font-size: 13px;
-      color: #777;
-      margin-bottom: 10px;
-    }
-
-    /* LIKE BUTTON */
-    .like-section {
-      margin-bottom: 15px;
-    }
-
-    #likeBtn {
-      background: #ff4d6d;
-      border: none;
-      color: #fff;
-      padding: 6px 12px;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-left: 10px;
-      transition: 0.3s;
-    }
-
-    #likeBtn:hover {
-      background: #d93655;
-    }
-
-    /* ARTICLE (Markdown Styling) */
-    .article {
-      line-height: 1.8;
-      margin-top: 20px;
-      font-size: 15px;
-    }
-
-    .article h1,
-    .article h2,
-    .article h3 {
-      margin-top: 20px;
-    }
-
-    .article p {
-      margin: 10px 0;
-    }
-
-    .article ul {
-      padding-left: 20px;
-    }
-
-    .article li {
-      margin-bottom: 5px;
-    }
-
-    .article code {
-      background: #eee;
-      padding: 3px 6px;
-      border-radius: 4px;
-    }
-
-    /* BACK LINK */
-    .back-link {
-      display: inline-block;
-      margin-top: 20px;
-      color: #007bff;
-      text-decoration: none;
-    }
-
-    .back-link:hover {
-      text-decoration: underline;
-    }
-
-    /* COMMENTS */
-    .comments-section {
-      margin-top: 40px;
-    }
-
-    .comments-section h3 {
-      margin-bottom: 15px;
-    }
-
-    .comment {
-      border-bottom: 1px solid #eee;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-    }
-
-    .comment strong {
-      color: #007bff;
-    }
-
-    /* FORM */
-    #commentForm input,
-    #commentForm textarea {
-      width: 100%;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      margin-bottom: 10px;
-      font-size: 14px;
-    }
-
-    #commentForm button {
-      padding: 10px 15px;
-      background: #007bff;
-      color: #fff;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    #commentForm button:hover {
-      background: #0056b3;
-    }
-
-    /* RESPONSIVE */
-    @media (max-width: 768px) {
-      .container {
-        margin: 20px;
-        padding: 15px;
-      }
-
-      h1 {
-        font-size: 22px;
-      }
-    }
-  </style>
-</head>
-
-<body>
-
-  <div class="container">
-
-    <!-- MEDIA -->
-    <div class="media-container">
-      <% if (data.mediaType === 'image') { %>
-        <img src="/uploads/images/<%= data.mediaFile %>" alt="Post Image">
-      <% } else if (data.mediaType === 'video') { %>
-        <video controls>
-          <source src="/uploads/videos/<%= data.mediaFile %>" type="video/mp4">
-        </video>
-      <% } else if (data.mediaType === 'audio') { %>
-        <audio controls>
-          <source src="/uploads/audio/<%= data.mediaFile %>" type="audio/mpeg">
-        </audio>
+    <div id="commentList">
+      <% if (comments.length === 0) { %>
+        <p style="color:var(--muted);font-size:0.9rem;margin-bottom:24px;">No comments yet. Be the first!</p>
+      <% } else { %>
+        <% comments.forEach(comment => { %>
+          <div class="comment">
+            <div class="comment-avatar"><%= comment.username.charAt(0).toUpperCase() %></div>
+            <div class="comment-body">
+              <strong><%= comment.username %></strong>
+              <p><%= comment.text %></p>
+            </div>
+          </div>
+        <% }) %>
       <% } %>
     </div>
 
-    <!-- TITLE -->
-    <h1><%= data.title %></h1>
+    <p class="comment-form-title">Leave a comment</p>
+    <form id="commentForm">
+      <input type="hidden" id="postId" name="postId" value="<%= data._id %>">
+      <input type="text" id="username" name="username" placeholder="Your name" required>
+      <textarea id="commentText" name="text" placeholder="Write your comment..." required></textarea>
+      <button type="submit">Post Comment</button>
+    </form>
+  </section>
 
-    <!-- META -->
-    <div class="meta">
-      Slug: <%= data.slug %> |
-      Date: <%= new Date(data.createdAt).toLocaleString() %>
-    </div>
+</div>
 
-    <!-- VIEWS + LIKES -->
-    <div class="like-section">
-      👁️ <%= data.views || 0 %> views |
-      ❤️ <span id="likeCount"><%= data.likes || 0 %></span>
-      <button id="likeBtn" data-postid="<%= data._id %>">Like</button>
-    </div>
-
-    <!-- BODY (IMPORTANT FIX HERE) -->
-    <article class="article">
-      <%- data.body %>
-    </article>
-
-    <!-- BACK -->
-    <a href="/" class="back-link">← Back to Blog</a>
-
-    <!-- COMMENTS -->
-    <section class="comments-section">
-      <h3>Comments</h3>
-
-      <div id="commentList">
-        <% if (comments.length === 0) { %>
-          <p>No comments yet. Be the first to comment!</p>
-        <% } else { %>
-          <% comments.forEach(comment => { %>
-            <div class="comment">
-              <strong><%= comment.username %>:</strong> <%= comment.text %>
-            </div>
-          <% }) %>
-        <% } %>
-      </div>
-
-      <form id="commentForm">
-        <input type="hidden" id="postId" name="postId" value="<%= data._id %>">
-        <input type="text" id="username" name="username" placeholder="Your name" required>
-        <textarea id="commentText" name="text" placeholder="Write a comment..." required></textarea>
-        <button type="submit">Post Comment</button>
-      </form>
-    </section>
-
-  </div>
-
-  <script src="/js/post-actions.js"></script>
-</body>
-</html>
+<script src="/js/post-actions.js"></script>

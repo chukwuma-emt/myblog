@@ -5,10 +5,12 @@ const isOwner = require('../../middleware/isOwner');
 
 const router = express.Router();
 
+const adminLayout = 'layouts/admin';
+
 // Owner dashboard
 router.get('/owner', isOwner, async (req, res) => {
-  const users = await User.find({}); // exclude owner since it's not in DB
-  res.render('owner/dashboard', { users });
+  const users = await User.find({});
+  res.render('owner/dashboard', { layout: adminLayout, users });
 });
 
 // Register new user

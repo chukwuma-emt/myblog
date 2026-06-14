@@ -21,7 +21,28 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(methodOverride('_method'));
-app.use(helmet()); // Secure headers
+// Generate a CSP nonce per request so JSON-LD inline scripts are allowed
+app.use((req, res, next) => {
+  res.locals.cspNonce = require('crypto').randomBytes(16).toString('base64');
+  next();
+});
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+      scriptSrcAttr: ["'unsafe-inline'"], // allows onsubmit/onclick in admin forms
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+    }
+  }
+}));
 app.use(compression()); // Compress responses
 
 // Sessions
@@ -55,6 +76,7 @@ app.set('view engine', 'ejs');
 
 // Route helpers
 app.locals.isActiveRoute = isActiveRoute;
+app.locals.siteUrl = process.env.SITE_URL || 'https://blog.ekolinc.com';
 app.use((req, res, next) => {
   res.locals.currentRoute = req.path;
   next();
@@ -66,6 +88,14 @@ app.use('/', require('./server/routes/admin'));
 app.use('/', require('./server/routes/owner'));
 const sitemapRoutes = require('./server/routes/sitemap');
 app.use('/', sitemapRoutes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).render('404', {
+    locals: { title: 'Page Not Found', noindex: true },
+    currentRoute: req.path
+  });
+});
 
 // Server
 app.listen(PORT, () => {
