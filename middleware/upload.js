@@ -33,13 +33,15 @@ const fileFilter = (req, file, cb) => {
     'image/jpeg',
     'image/png',
     'image/jpg',
+    'image/webp',
+    'image/gif',
     'video/mp4',
-    'video/mov',
-    'video/avi',
-    'audio/mpeg',
-    'audio/mp3',
+    'video/quicktime',  // .mov
+    'video/x-msvideo',  // .avi
+    'audio/mpeg',       // .mp3
     'audio/wav',
-    'audio/m4a'
+    'audio/mp4',        // .m4a
+    'audio/x-m4a'
   ];
 
   if (allowedTypes.includes(file.mimetype)) {
