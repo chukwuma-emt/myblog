@@ -14,7 +14,11 @@
     <code>`code`</code>
   </div>
 
-  <form action="/add-post" method="POST" enctype="multipart/form-data" class="admin-form">
+  <% if (locals.error) { %>
+    <div class="form-error-banner">⚠️ <%= locals.error %></div>
+  <% } %>
+
+  <form action="/add-post" method="POST" enctype="multipart/form-data" class="admin-form" id="addPostForm">
 
     <p class="form-section">Post Content</p>
 
@@ -74,9 +78,17 @@
       <textarea id="metaDescription" name="metaDescription" rows="3" placeholder="160-character description for Google search results"></textarea>
     </div>
 
-    <button type="submit" class="btn-admin" style="width:100%;justify-content:center;padding:12px;font-size:0.95rem;">
+    <button type="submit" id="submitBtn" class="btn-admin" style="width:100%;justify-content:center;padding:12px;font-size:0.95rem;">
       🚀 Publish Post
     </button>
 
   </form>
 </div>
+
+<script>
+  document.getElementById('addPostForm').addEventListener('submit', function() {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Publishing...';
+  });
+</script>
