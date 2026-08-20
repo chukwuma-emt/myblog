@@ -14,7 +14,7 @@ const jwtSecret = process.env.JWT_SECRET;
 // ================= AUTH =================
 const authMiddleware = (req, res, next) => {
   const token = req.cookies.token;
-  if (!token) return res.status(401).json({ message: 'Unauthorized' });
+  if (!token) return res.redirect('/admin?error=Session expired, please log in again');
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
@@ -22,7 +22,7 @@ const authMiddleware = (req, res, next) => {
     req.role = decoded.role;
     next();
   } catch (err) {
-    return res.status(401).json({ message: 'Unauthorized' });
+    return res.redirect('/admin?error=Session expired, please log in again');
   }
 };
 
@@ -80,7 +80,8 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
 // ================= ADD POST PAGE =================
 router.get('/add-post', authMiddleware, (req, res) => {
   res.render('admin/add-post', {
-    layout: adminLayout
+    layout: adminLayout,
+    error: req.query.error || null
   });
 });
 
@@ -130,7 +131,10 @@ router.post('/add-post', authMiddleware, upload.single('media'), async (req, res
     res.redirect(`/post/${finalSlug}`);
   } catch (err) {
     console.error(err);
-    res.status(500).send('Post creation error');
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'File too large. Maximum size is 50MB.'
+      : 'Failed to create post. Please try again.';
+    res.redirect('/add-post?error=' + encodeURIComponent(message));
   }
 });
 
