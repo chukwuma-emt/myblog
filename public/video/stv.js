@@ -58,7 +58,7 @@ const SAMPLE = [
   'Small habits, done daily, beat big plans done once.', '',
   'Follow for more simple routines.'
 ].join('\n');
-const DEF = { script: SAMPLE, look: 'captions', format: '9:16', theme: 'night', font: 'montserrat', upper: true, pos: 'middle', hl: 'box', wpm: 160, handle: '', progress: true, quality: 1080, musicVol: 0.3, aiVoice: 'af_heart', aiSpeed: 1, capY: null };
+const DEF = { script: SAMPLE, look: 'captions', format: '9:16', theme: 'night', font: 'montserrat', upper: true, pos: 'middle', hl: 'box', wpm: 160, handle: '', progress: true, quality: 1080, musicVol: 0.3, aiVoice: 'af_heart', aiSpeed: 1, capY: null, duck: true, voiceVol: 1 };
 
 function load() {
   let s = {};
@@ -79,13 +79,15 @@ function load() {
   if (!OPTS.aiVoice.some(v => v[0] === o.aiVoice)) o.aiVoice = DEF.aiVoice;
   o.aiSpeed = Number.isFinite(+o.aiSpeed) ? clamp(Math.round(+o.aiSpeed * 20) / 20, 0.8, 1.2) : 1;
   o.capY = o.capY != null && Number.isFinite(+o.capY) ? clamp(+o.capY, 0.12, 0.88) : null;
+  o.duck = o.duck !== false;
+  o.voiceVol = Number.isFinite(+o.voiceVol) ? clamp(+o.voiceVol, 0, 2) : 1;
   return o;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null;
-const VERSION = '2.1';
+const VERSION = '2.2';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 // how long a clip's trimmed part lasts on screen, at its speed
 const clipLen = m => Math.max(0.1, (m.out - m.in) / (m.speed || 1));
@@ -195,7 +197,7 @@ function build() {
   let durs, talk;
   if (sync) {
     // each scene's own stretch of the voice; a scene with no words has none
-    talk = sync.map((r, i) => raw[i].kind === 'clip' ? 0 : i === n - 1 ? Math.max(r.len + 0.4, 0.8) : Math.max(0.05, r.len));
+    talk = sync.map((r, i) => raw[i].kind === 'clip' ? 0 : !(r.len > 0.05) ? autoDur(raw[i]) : i === n - 1 ? Math.max(r.len + 0.4, 0.8) : r.len);
     durs = talk.map((d, i) => {
       if (raw[i].kind !== 'clip') return d;
       const m = clipAt(i);
@@ -765,27 +767,70 @@ function scheduleAudio(ctx, out, offset, total, when) {
       const skip = Math.max(0, offset - q.at), from = q.from + skip, len = Math.min(q.len - skip, voice.dur - from);
       if (len <= 0.005) continue;
       const at = when + Math.max(0, q.at - offset), s = ctx.createBufferSource(); s.buffer = voice.buffer;
+      const g = ctx.createGain(), vv = S.voiceVol;
       if (cut) { // tiny fades so the joins never click
-        const g = ctx.createGain(), f = Math.min(0.006, len / 3);
-        g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(1, at + f);
-        g.gain.setValueAtTime(1, at + len - f); g.gain.linearRampToValueAtTime(0, at + len);
-        s.connect(g); g.connect(out);
-      } else s.connect(out);
+        const f = Math.min(0.006, len / 3);
+        g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(vv, at + f);
+        g.gain.setValueAtTime(vv, at + len - f); g.gain.linearRampToValueAtTime(0, at + len);
+      } else g.gain.value = vv;
+      s.connect(g); g.connect(out);
       s.start(at, from, len); list.push(s);
     }
   }
   if (music) {
     const s = ctx.createBufferSource(), g = ctx.createGain(), v = Math.max(0.0001, S.musicVol), fl = Math.min(1.5, total * 0.2);
     s.buffer = music.buffer; s.loop = true;
-    g.gain.setValueAtTime(offset < 0.05 ? 0.0001 : v, when);
-    if (offset < 0.05) g.gain.linearRampToValueAtTime(v, when + 0.3);
-    if (end > fl) g.gain.setValueAtTime(v, when + end - fl);
-    g.gain.linearRampToValueAtTime(0.0001, when + end);
+    for (const [t, val, ramp] of musicLevels(offset, end, v, fl)) {
+      if (ramp) g.gain.linearRampToValueAtTime(val, when + t); else g.gain.setValueAtTime(val, when + t);
+    }
     s.connect(g); g.connect(out);
     s.start(when, offset % music.buffer.duration); s.stop(when + end + 0.05); list.push(s);
   }
   scheduleClipSound(ctx, out, offset, when, list);
   return { nodes: list, when };
+}
+// When the voice speaks (timeline seconds), found from the sound itself
+function speechTimes() {
+  if (!voice || !S.duck) return [];
+  if (!voice.act) {
+    const d = voice.buffer.getChannelData(0), sr = voice.buffer.sampleRate, win = Math.round(sr * 0.02), rms = [];
+    let peak = 0;
+    for (let a = 0; a < d.length; a += win) { let e = 0; const b = Math.min(d.length, a + win); for (let k = a; k < b; k++) e += d[k] * d[k]; const r = Math.sqrt(e / Math.max(1, b - a)); rms.push(r); if (r > peak) peak = r; }
+    const th = Math.max(0.006, peak * 0.1), act = [];
+    rms.forEach((r, k) => {
+      if (r < th) return;
+      const t = k * 0.02, l = act[act.length - 1];
+      if (l && t - l[1] < 0.35) l[1] = t + 0.02; else act.push([t, t + 0.02]);
+    });
+    voice.act = act.filter(x => x[1] - x[0] >= 0.1);
+  }
+  const plan = TL.vo || [{ at: 0, from: 0, len: voice.dur }], out = [];
+  for (const q of plan) for (const [a, b] of voice.act) {
+    const x = Math.max(a, q.from), y = Math.min(b, q.from + q.len);
+    if (y > x) out.push([q.at + x - q.from, q.at + y - q.from]);
+  }
+  out.sort((p, q) => p[0] - q[0]);
+  const merged = [];
+  for (const r of out) { const l = merged[merged.length - 1]; if (l && r[0] - l[1] < 0.85) l[1] = Math.max(l[1], r[1]); else merged.push(r.slice()); }
+  return merged;
+}
+// music volume over time, relative to `offset`: fade in, dip under the voice, fade out at the end
+function musicLevels(offset, end, v, fl) {
+  const total = offset + end, sp = speechTimes();
+  const duck = t => {
+    let g = 1;
+    for (const [a, b] of sp) {
+      if (t < a - 0.25 || t > b + 0.6) continue;
+      const k = t < a ? (a - t) / 0.25 : t > b ? (t - b) / 0.6 : 0;
+      g = Math.min(g, 0.28 + 0.72 * clamp(k, 0, 1));
+    }
+    return g;
+  };
+  const L = t => Math.max(0.0001, v * duck(t) * Math.min(1, t / 0.3) * clamp((total - t) / fl, 0, 1));
+  const pts = new Set([offset, Math.max(offset, total - fl), total]);
+  if (offset < 0.3) pts.add(0.3);
+  for (const [a, b] of sp) [a - 0.25, a, b, b + 0.6].forEach(x => { if (x > offset && x < total) pts.add(x); });
+  return [...pts].filter(x => x >= offset && x <= total).sort((p, q) => p - q).map((t, k) => [t - offset, L(t), k > 0]);
 }
 function clipRuns() {
   const runs = [], scs = TL.scenes;
@@ -905,10 +950,13 @@ function drawThumbs() {
 function renderAudio() {
   const v = !!voice;
   $('#voiceNote').innerHTML = v
-    ? '<b>' + esc(voice.name) + '</b> · ' + fmtT(voice.dur) + '. ' + (voice.made ? 'Each scene starts exactly where its line begins.' : sync ? 'Scenes change where you tapped.' : 'Scenes stretch to fit it. For exact timing, tap to sync.')
-    : 'Or record yourself reading the script (a voice memo works) and add the file. Scenes stretch to fit it. A video file works too; its sound is used.';
-  $('#bVoice').textContent = v ? 'Use my recording' : 'Add my recording';
-  $('#bSync').hidden = !v || !!voice.made; $('#bSync').textContent = sync ? 'Sync again' : 'Tap to sync';
+    ? '<b>' + esc(voice.name) + '</b> · ' + fmtT(voice.dur) + '. ' + (voice.rec ? (voice.key !== scriptKey() ? 'You changed the script after recording. Record again from the scene you changed.' : 'Each scene starts where you tapped Next. To fix a scene, select it on the timeline and record again.') : voice.made ? 'Each scene starts exactly where its line begins.' : sync ? 'Scenes change where you tapped.' : 'Scenes stretch to fit it. For exact timing, tap to sync.')
+    : 'Record yourself reading the script, scene by scene, or add a recording you made (a voice memo works). A video file works too; its sound is used.';
+  $('#bVoice').textContent = v ? 'Use a file' : 'Add a recording';
+  $('#bRec').textContent = v && voice.rec ? 'Record again' : 'Record my voice';
+  $('#vvRow').hidden = !v; $('#vvol').value = Math.round(S.voiceVol * 100); $('#vvVal').textContent = Math.round(S.voiceVol * 100) + '%';
+  $('#duckRow').hidden = !(v && music); $('#tDuck').checked = S.duck;
+  $('#bSync').hidden = !v || !!voice.made || !!voice.rec; $('#bSync').textContent = sync ? 'Sync again' : 'Tap to sync';
   $('#aiSpeed').value = S.aiSpeed; $('#aiSpeedVal').textContent = S.aiSpeed.toFixed(2).replace(/0$/, '') + '×';
   $('#bSaveVoice').hidden = !(v && voice.made && DL);
   $('#bPlayVoice').hidden = !(v && voice.made);
@@ -1104,6 +1152,7 @@ function aiNoteSet(t) { $('#aiNote').textContent = t; }
 function aiBarSet(p) { $('#aiBar').hidden = p == null; if (p != null) $('#aiBarI').style.width = (clamp(p, 0, 1) * 100).toFixed(1) + '%'; }
 function aiDefaultNote() {
   if (voice && voice.made && voice.key !== scriptKey()) return 'You changed the script after making this voice. Make the voiceover again so they match.';
+  if (voice && voice.rec) return 'Using your own recorded voice. Make an AI voiceover to replace it.';
   if (voice && voice.made) return 'Voiceover ready in ' + voice.voiceName + '. Tap Play from start to hear the whole script with your video.';
   return 'Free voices made on this phone from your script. The first time, it downloads the voice engine (about 110 MB) once. After that it starts in seconds.';
 }
@@ -1154,6 +1203,21 @@ function playFromStart() {
   try { $('.monitor').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {}
   play();
 }
+// even out a voice and bring it to a strong, steady level
+async function polish(all, sr) {
+  try {
+    const O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const oc = new O(1, all.length, sr), src = oc.createBufferSource(), cmp = oc.createDynamicsCompressor(), mk = oc.createGain();
+    const b0 = oc.createBuffer(1, all.length, sr); b0.copyToChannel(all, 0); src.buffer = b0;
+    cmp.threshold.value = -28; cmp.knee.value = 10; cmp.ratio.value = 4; cmp.attack.value = 0.004; cmp.release.value = 0.2; mk.gain.value = 2.2;
+    src.connect(cmp); cmp.connect(mk); mk.connect(oc.destination); src.start(0);
+    all = new Float32Array((await oc.startRendering()).getChannelData(0));
+  } catch (e) { /* keep the voice as it is */ }
+  let peak = 0;
+  for (let i = 0; i < all.length; i++) { const v = Math.abs(all[i]); if (v > peak) peak = v; }
+  if (peak > 0) { const g = Math.min(3, 0.89 / peak); for (let i = 0; i < all.length; i++) all[i] *= g; }
+  return all;
+}
 async function makeVoice() {
   if (aiBusy) return;
   if (busy || !TL.scenes.length) return;
@@ -1181,18 +1245,7 @@ async function makeVoice() {
     }
     const starts = []; let acc = 0;
     pieces.forEach(p => { starts.push(acc / VSR); acc += p.length; });
-    let all = joinF32(pieces.concat([silence(0.3)]));
-    try {
-      const O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-      const oc = new O(1, all.length, VSR), src = oc.createBufferSource(), cmp = oc.createDynamicsCompressor(), mk = oc.createGain();
-      const b0 = oc.createBuffer(1, all.length, VSR); b0.copyToChannel(all, 0); src.buffer = b0;
-      cmp.threshold.value = -28; cmp.knee.value = 10; cmp.ratio.value = 4; cmp.attack.value = 0.004; cmp.release.value = 0.2; mk.gain.value = 2.2;
-      src.connect(cmp); cmp.connect(mk); mk.connect(oc.destination); src.start(0);
-      all = new Float32Array((await oc.startRendering()).getChannelData(0));
-    } catch (e) { /* keep the uncompressed voice */ }
-    let peak = 0;
-    for (let i = 0; i < all.length; i++) { const v = Math.abs(all[i]); if (v > peak) peak = v; }
-    if (peak > 0) { const g = Math.min(3, 0.89 / peak); for (let i = 0; i < all.length; i++) all[i] *= g; }
+    const all = await polish(joinF32(pieces.concat([silence(0.3)])), VSR);
     const buf = ctx.createBuffer(1, all.length, VSR); buf.copyToChannel(all, 0);
     remember();
     voice = { buffer: buf, dur: buf.duration, name: VOICE_NAMES[vId] + ' (AI voice)', made: true, key, voiceName: VOICE_NAMES[vId] };
@@ -1224,6 +1277,140 @@ async function saveVoice() {
     const c = e && e.code;
     aiNoteSet(c === 'declined' ? 'Not saved.' : c ? 'Couldn’t save the voice file here.' : 'Couldn’t make the voice file (' + ((e && e.message) || e) + ').');
   } finally { b.disabled = false; }
+}
+
+/* ---------- record your own voice ---------- */
+// A teleprompter: read each scene and tap Next. One continuous recording; each tap marks where a scene
+// begins, nudged to the nearest pause so no word is cut.
+let REC = null;
+const recDlg = () => $('#recDlg');
+const textScenes = () => TL.scenes.map((sc, i) => sc.kind === 'clip' || !sc.words.length ? -1 : i).filter(i => i >= 0);
+function recSay(t) { $('#recHint').textContent = t; }
+function openRec() {
+  if (busy || aiBusy || REC) return;
+  const list = textScenes();
+  if (!list.length) { $('#voiceNote').textContent = 'Type a script first, so there are words to read.'; return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('#voiceNote').textContent = window.isSecureContext === false ? 'Recording needs the page to open with https.' : 'This browser can’t record from the microphone. Try Safari or Chrome.'; return; }
+  stopPlay();
+  const keep = !!(voice && sync && (voice.made || voice.rec) && voice.key === scriptKey());
+  const fromSel = keep ? list.find(i => i >= sel) : undefined;
+  REC = { state: 'ready', list, pos: 0, pos0: 0, partial: false };
+  $('#recFrom').innerHTML = keep && fromSel != null && fromSel !== list[0]
+    ? '<button type="button" class="btn" data-from="0" aria-pressed="true">From the start</button><button type="button" class="btn" data-from="' + list.indexOf(fromSel) + '" aria-pressed="false">Only from scene ' + (fromSel + 1) + '</button>'
+    : '';
+  recSay('Press Start and read each scene out loud. Tap Next scene as you start the next one. Somewhere quiet works best.');
+  recShow(); recDlg().hidden = false; $('#recBtn').focus();
+}
+function recShow() {
+  const i = REC.list[REC.pos], sc = TL.scenes[i], nx = REC.list[REC.pos + 1];
+  $('#recNum').textContent = 'Scene ' + (i + 1) + ' of ' + TL.scenes.length;
+  $('#recText').textContent = sc ? sc.text : '';
+  $('#recNext').textContent = nx != null ? 'Next: ' + TL.scenes[nx].text : 'This is the last scene.';
+  const last = REC.pos >= REC.list.length - 1;
+  $('#recBtn').textContent = REC.state === 'ready' ? 'Start' : last ? 'Finish' : 'Next scene';
+  $('#recStop').hidden = REC.state !== 'recording' || last;
+  $('#recFrom').hidden = REC.state !== 'ready';
+}
+async function recBegin() {
+  const ctx = getCtx();
+  if (!ctx) throw new Error('This browser can’t record sound.');
+  try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+  if (!REC) { stream.getTracks().forEach(t => t.stop()); return; }
+  const src = ctx.createMediaStreamSource(stream), proc = ctx.createScriptProcessor(4096, 1, 1), mute = ctx.createGain();
+  mute.gain.value = 0;
+  Object.assign(REC, { stream, src, proc, mute, chunks: [], n: 0, sr: ctx.sampleRate, marks: [0], level: 0, state: 'recording', t0: performance.now() });
+  proc.onaudioprocess = e => {
+    if (!REC || REC.state !== 'recording') return;
+    const d = e.inputBuffer.getChannelData(0);
+    REC.chunks.push(new Float32Array(d)); REC.n += d.length;
+    let pk = 0; for (let k = 0; k < d.length; k += 8) { const x = Math.abs(d[k]); if (x > pk) pk = x; }
+    REC.level = Math.max(pk, REC.level * 0.85);
+  };
+  src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+  const tick = () => {
+    if (!REC || REC.state !== 'recording') return;
+    $('#recLevel').style.width = Math.round(clamp(Math.sqrt(REC.level) * 110, 2, 100)) + '%';
+    $('#recClock').textContent = fmtT((performance.now() - REC.t0) / 1000);
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function recRelease() {
+  if (!REC) return;
+  try { REC.proc && (REC.proc.onaudioprocess = null); } catch (e) {}
+  try { REC.src && REC.src.disconnect(); REC.proc && REC.proc.disconnect(); REC.mute && REC.mute.disconnect(); } catch (e) {}
+  try { REC.stream && REC.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+}
+function closeRec() { recRelease(); REC = null; recDlg().hidden = true; $('#recBtn').disabled = false; $('#recLevel').style.width = '0%'; $('#recClock').textContent = ''; }
+async function recTap() {
+  if (!REC || REC.state === 'processing') return;
+  if (REC.state === 'ready') {
+    $('#recBtn').disabled = true; recSay('Waiting for the microphone…');
+    try { await recBegin(); }
+    catch (e) {
+      const n = e && e.name;
+      recSay(n === 'NotAllowedError' || n === 'SecurityError' ? 'The microphone is blocked. Allow it for this site in your browser settings, then try again.' : n === 'NotFoundError' ? 'No microphone was found.' : 'The microphone couldn’t start (' + ((e && e.message) || e) + ').');
+      recRelease(); if (REC) REC.state = 'ready'; $('#recBtn').disabled = false; return;
+    }
+    $('#recBtn').disabled = false;
+    recSay('Recording. Read the scene, then tap Next scene.');
+    recShow(); return;
+  }
+  if (REC.pos < REC.list.length - 1) { REC.marks.push(REC.n); REC.pos++; recShow(); return; }
+  recFinish();
+}
+async function recFinish() {
+  if (!REC || REC.state !== 'recording') return;
+  REC.state = 'processing'; recRelease();
+  $('#recBtn').disabled = true; $('#recStop').hidden = true; recSay('Getting your voice ready…');
+  try {
+    const { sr, n } = REC, pcm = new Float32Array(n);
+    let o = 0; for (const c of REC.chunks) { pcm.set(c, o); o += c.length; }
+    REC.chunks = null;
+    if (n < sr * 0.4) throw new Error('That recording was too short.');
+    // loudness every 20 ms, to find where speaking starts, stops and pauses
+    const win = Math.round(sr * 0.02), rms = [];
+    let peak = 0;
+    for (let a = 0; a < n; a += win) { let e = 0; const b = Math.min(n, a + win); for (let k = a; k < b; k++) e += pcm[k] * pcm[k]; const r = Math.sqrt(e / Math.max(1, b - a)); rms.push(r); if (r > peak) peak = r; }
+    if (peak < 0.003) throw new Error('No voice was heard. Check the microphone and try again.');
+    const th = Math.max(0.004, peak * 0.08), total = n / sr;
+    let on = rms.findIndex(r => r > th), off = rms.length - 1 - rms.slice().reverse().findIndex(r => r > th);
+    const start = Math.max(0, on * 0.02 - 0.2), stop = Math.min(total, (off + 1) * 0.02 + 0.35);
+    const quiet = t => {
+      let best = t, low = Infinity;
+      for (let x = Math.max(start, t - 0.35); x <= Math.min(stop, t + 0.35); x += 0.02) { const r = rms[Math.floor(x / 0.02)] || 0, w = r + Math.abs(x - t) * th * 0.05; if (w < low) { low = w; best = x; } }
+      return best;
+    };
+    const used = REC.marks.length, bounds = [start];
+    for (let j = 1; j < used; j++) bounds.push(Math.max(bounds[j - 1] + 0.2, quiet(REC.marks[j] / sr)));
+    bounds.push(Math.max(bounds[bounds.length - 1] + 0.2, stop));
+    const cut = await polish(pcm.slice(Math.floor(start * sr), Math.min(n, Math.ceil(stop * sr))), sr);
+    // keep the scenes that weren't re-recorded, if this was only from part way through
+    const partial = REC.partial && voice && sync && sync.length === TL.scenes.length;
+    let base = new Float32Array(0), off0 = 0;
+    if (partial) {
+      const O = window.OfflineAudioContext || window.webkitOfflineAudioContext, len = Math.ceil(voice.buffer.duration * sr);
+      const oc = new O(1, Math.max(1, len), sr), sN = oc.createBufferSource(); sN.buffer = voice.buffer; sN.connect(oc.destination); sN.start(0);
+      base = new Float32Array((await oc.startRendering()).getChannelData(0)); off0 = base.length / sr;
+    }
+    const all = new Float32Array(base.length + cut.length); all.set(base, 0); all.set(cut, base.length);
+    const ranges = TL.scenes.map((sc, i) => partial ? { from: sync[i].from, len: sync[i].len } : { from: 0, len: 0 });
+    for (let j = 0; j < used; j++) ranges[REC.list[REC.pos0 + j]] = { from: off0 + bounds[j] - start, len: bounds[j + 1] - bounds[j] };
+    const ctx = getCtx(), buf = ctx.createBuffer(1, all.length, sr); buf.copyToChannel(all, 0);
+    remember();
+    voice = { buffer: buf, dur: buf.duration, name: partial && voice.made ? 'AI voice with your voice' : 'Your voice', rec: true, key: scriptKey() };
+    sync = ranges; durOv = [];
+    closeRec(); refresh();
+    $('#voiceNote').innerHTML = '<b>Your voice is ready</b> · ' + used + (used === 1 ? ' scene' : ' scenes') + ' recorded. Playing it with your video from the start.';
+    playFromStart();
+  } catch (e) {
+    console.warn(e);
+    recSay((e && e.message) || 'Something went wrong. Try again.');
+    if (REC) { REC.state = 'ready'; REC.pos = REC.pos0 || 0; }
+    $('#recBtn').disabled = false; if (REC) recShow();
+  }
 }
 
 /* ---------- tap to sync ---------- */
@@ -1587,7 +1774,7 @@ async function saveProject() {
   let v = null, mu = null;
   if (voice) {
     if (!voice.file) voice.file = wavBlob(voice.buffer);
-    v = { fid: fileId(voice.file), name: voice.name, made: !!voice.made, key: voice.key || null, voiceName: voice.voiceName || null };
+    v = { fid: fileId(voice.file), name: voice.name, made: !!voice.made, rec: !!voice.rec, key: voice.key || null, voiceName: voice.voiceName || null };
     files.set(v.fid, voice.file);
   }
   if (music && music.file) { mu = { fid: fileId(music.file), name: music.name }; files.set(mu.fid, music.file); }
@@ -1624,7 +1811,7 @@ async function restoreProject() {
     media = pj.scenes.map(k => k >= 0 ? objs[k] || null : null);
     durOv = Array.isArray(pj.durOv) ? pj.durOv.map(x => x == null ? undefined : +x) : [];
     if (pj.voice) {
-      try { const f = await getFile(pj.voice.fid); if (f) { const b = await decodeFile(f); voice = { buffer: b, dur: b.duration, name: pj.voice.name, made: pj.voice.made, key: pj.voice.key, voiceName: pj.voice.voiceName, file: f }; } } catch (e) { voice = null; }
+      try { const f = await getFile(pj.voice.fid); if (f) { const b = await decodeFile(f); voice = { buffer: b, dur: b.duration, name: pj.voice.name, made: pj.voice.made, rec: !!pj.voice.rec, key: pj.voice.key, voiceName: pj.voice.voiceName, file: f }; } } catch (e) { voice = null; }
     }
     if (pj.music) {
       try { const f = await getFile(pj.music.fid); if (f) { const b = await decodeFile(f); music = { buffer: b, dur: b.duration, name: pj.music.name, file: f }; } } catch (e) { music = null; }
@@ -1814,7 +2001,7 @@ function applyRows(list, pick, pre) {
     $('#photoNote').textContent = 'That change would alter the wording of a scene, so it wasn’t made. Edit the script instead.';
     return false;
   }
-  const voiceOk = !!(voice && voice.made && voice.key === scriptKey()), hadSync = !!sync;
+  const voiceOk = !!(voice && (voice.made || voice.rec) && voice.key === scriptKey()), hadSync = !!sync;
   remember(pre);
   S.script = script; $('#script').value = script;
   media = list.map(r => r.m || null); durOv = list.map(r => r.d); ovl = list.map(r => r.o || []); selText = null;
@@ -2200,6 +2387,22 @@ function endDrag(e) {
 }
 cv.addEventListener('pointerup', endDrag);
 cv.addEventListener('pointercancel', endDrag);
+
+/* ---------- sound events ---------- */
+$('#bRec').addEventListener('click', () => { getCtx(); openRec(); });
+$('#recBtn').addEventListener('click', recTap);
+$('#recStop').addEventListener('click', recFinish);
+$('#recCancel').addEventListener('click', closeRec);
+$('#recFrom').addEventListener('click', e => {
+  const b = e.target.closest('[data-from]');
+  if (!b || !REC || REC.state !== 'ready') return;
+  REC.pos = REC.pos0 = +b.dataset.from; REC.partial = REC.pos0 > 0;
+  $$('#recFrom [data-from]').forEach(x => x.setAttribute('aria-pressed', x === b));
+  recShow();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && REC && REC.state !== 'processing') { e.preventDefault(); closeRec(); } });
+$('#vvol').addEventListener('input', e => { S.voiceVol = clamp(+e.target.value / 100, 0, 2); $('#vvVal').textContent = Math.round(S.voiceVol * 100) + '%'; save(); });
+$('#tDuck').addEventListener('change', e => { S.duck = e.target.checked; save(); });
 
 /* ---------- website check: notice when the site's security settings block the tool ---------- */
 function serverNotice(what) {

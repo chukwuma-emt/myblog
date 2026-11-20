@@ -119,6 +119,9 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .tsw[aria-checked=true]{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--rec)}
 .tname{min-width:56px;font-weight:600;font-size:14px}
 .trow output{min-width:96px;text-align:center;font-weight:600;font-size:14px;color:var(--muted)}
+.meter{height:10px;border-radius:5px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--rec);transition:width .08s linear}
+#recFrom [aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .tlops{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
 .clipbox{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
 .cbhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:15px}
@@ -245,12 +248,14 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
    </div>
    <div class="arow">
     <div><span class="lbl">Voiceover</span><p class="hint" id="voiceNote"></p></div>
-    <div class="btns"><button class="btn" id="bVoice" type="button">Add voiceover</button><button class="btn" id="bSync" type="button" hidden>Tap to sync</button><button class="btn" id="bVoiceX" type="button" hidden>Remove</button></div>
+    <div class="btns"><button class="primary" id="bRec" type="button">Record my voice</button><button class="btn" id="bVoice" type="button">Add voiceover</button><button class="btn" id="bSync" type="button" hidden>Tap to sync</button><button class="btn" id="bVoiceX" type="button" hidden>Remove</button></div>
+    <label class="vol" id="vvRow" hidden><span>Voice volume: <span id="vvVal"></span></span><input type="range" id="vvol" min="0" max="200" step="5"></label>
    </div>
    <div class="arow">
     <div><span class="lbl">Music</span><p class="hint" id="musicNote"></p></div>
     <div class="btns"><button class="btn" id="bMusic" type="button">Add music</button><button class="btn" id="bMusicX" type="button" hidden>Remove</button></div>
     <label class="vol" id="volRow" hidden>Music volume<input type="range" id="vol" min="0" max="100" step="1"></label>
+    <label class="toggle" id="duckRow" hidden><input type="checkbox" id="tDuck"> Lower the music while the voice speaks</label>
    </div>
    <div class="field"><label for="pace">Speaking pace: <span id="paceVal"></span> words a minute</label><input type="range" id="pace" min="110" max="210" step="5"><p class="hint" id="paceNote"></p></div>
   </div>
@@ -266,12 +271,22 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   <div class="btns end"><span class="clock" id="syncClock"></span><button class="btn" id="syncCancel" type="button">Cancel</button><button class="primary" id="syncBtn" type="button">Start</button></div>
  </div>
 </div>
+<div class="dlg" id="recDlg" hidden>
+ <div class="card" role="dialog" aria-modal="true" aria-labelledby="recTitle">
+  <h2 id="recTitle">Record your voice</h2>
+  <p class="hint" id="recHint"></p>
+  <div class="btns tight" id="recFrom"></div>
+  <div class="cue"><span class="tag" id="recNum"></span><p id="recText"></p><p class="next" id="recNext"></p></div>
+  <div class="meter" aria-hidden="true"><i id="recLevel"></i></div>
+  <div class="btns end"><span class="clock" id="recClock"></span><button class="btn" id="recCancel" type="button">Cancel</button><button class="btn" id="recStop" type="button" hidden>Finish here</button><button class="primary" id="recBtn" type="button">Start</button></div>
+ </div>
+</div>
 <input class="vh" type="file" id="fPhotos" accept="image/*,video/*" multiple tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fPhoto" accept="image/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fAdd" accept="image/*,video/*" multiple tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 
-<script src="stv.js?v=2.1"></script>
+<script src="stv.js?v=2.2"></script>
 </body>
 </html>
