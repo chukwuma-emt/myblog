@@ -205,7 +205,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   <div class="result" id="result" hidden>
    <video id="outVid" controls playsinline preload="metadata"></video>
    <p class="hint" id="outInfo"></p>
-   <div class="btns"><button class="primary" id="share" type="button" hidden>Save to phone</button><button class="primary" id="save" type="button">Save video</button></div>
+   <div class="btns"><button class="primary" id="share" type="button" hidden>Save or share</button><button class="primary" id="save" type="button">Save video</button></div>
    <p class="hint" id="saveNote"></p>
   </div>
  </section>
@@ -231,6 +231,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
    <div class="field"><span class="lbl" id="lFmt">Shape</span><div class="seg" role="radiogroup" aria-labelledby="lFmt" data-key="format"></div><p class="hint" id="fmtHint"></p></div>
    <div class="field"><span class="lbl" id="lCol">Colours</span><div class="swatches" role="radiogroup" aria-labelledby="lCol" data-key="theme"></div></div>
    <div class="field"><span class="lbl" id="lFont">Font</span><div class="seg" role="radiogroup" aria-labelledby="lFont" data-key="font"></div></div>
+   <div class="field"><span class="lbl" id="lTrans">Transitions</span><div class="seg" role="radiogroup" aria-labelledby="lTrans" data-key="trans"></div><p class="hint">How each scene gives way to the next. You can pick a different one for any scene on the timeline.</p></div>
    <div class="field" id="hlField"><span class="lbl" id="lHl">Word highlight</span><div class="seg" role="radiogroup" aria-labelledby="lHl" data-key="hl"></div></div>
    <div class="field" id="posField"><span class="lbl" id="lPos">Caption position</span><div class="seg" role="radiogroup" aria-labelledby="lPos" data-key="pos"></div><p class="hint">Or tap the captions on the video, then drag them up or down.</p></div>
    <div class="toggles"><label class="toggle"><input type="checkbox" id="tUpper"> Capital letters</label><label class="toggle"><input type="checkbox" id="tProg"> Progress bar</label></div>
@@ -287,6 +288,6 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 
-<script src="stv.js?v=2.2"></script>
+<script src="stv.js?v=2.3"></script>
 </body>
 </html>

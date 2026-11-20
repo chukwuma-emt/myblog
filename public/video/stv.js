@@ -38,6 +38,7 @@ const FORMATS = {
   '9:16': { hint: 'Tall. TikTok, Reels, Shorts, WhatsApp status.', w: 1080, h: 1920, cap: [3, 14, 108], sub: [22, 54, 0.76], lowerY: 0.66, thumb: [64, 114] },
   '4:5':  { hint: 'Portrait. Instagram and Facebook feeds.', w: 1080, h: 1350, cap: [3, 16, 100], sub: [26, 50, 0.84], lowerY: 0.7, thumb: [76, 95] },
   '1:1':  { hint: 'Square. Works in every feed.', w: 1080, h: 1080, cap: [3, 16, 96], sub: [28, 48, 0.86], lowerY: 0.72, thumb: [84, 84] },
+  '16:9': { hint: 'Wide. YouTube and TV screens.', w: 1920, h: 1080, cap: [4, 24, 92], sub: [46, 44, 0.86], lowerY: 0.74, thumb: [120, 68] },
   '16:9': { hint: 'Wide. YouTube and presentations.', w: 1920, h: 1080, cap: [4, 24, 100], sub: [42, 50, 0.88], lowerY: 0.74, thumb: [120, 68] }
 };
 const OPTS = {
@@ -46,6 +47,7 @@ const OPTS = {
   font: Object.keys(FONTS).map(v => [v, FONTS[v].label]),
   hl: [['box', 'Box'], ['colour', 'Colour'], ['off', 'Off']],
   pos: [['middle', 'Middle'], ['lower', 'Lower']],
+  trans: [['fade', 'Fade'], ['slide', 'Slide'], ['zoom', 'Zoom'], ['dip', 'Dip to black'], ['wipe', 'Wipe'], ['cut', 'Cut']],
   quality: [['720', '720p'], ['1080', '1080p']],
   aiVoice: [['af_heart', 'Heart · US woman'], ['af_bella', 'Bella · US woman'], ['am_michael', 'Michael · US man'], ['am_fenrir', 'Fenrir · US man'], ['bf_emma', 'Emma · UK woman'], ['bm_george', 'George · UK man']]
 };
@@ -58,7 +60,7 @@ const SAMPLE = [
   'Small habits, done daily, beat big plans done once.', '',
   'Follow for more simple routines.'
 ].join('\n');
-const DEF = { script: SAMPLE, look: 'captions', format: '9:16', theme: 'night', font: 'montserrat', upper: true, pos: 'middle', hl: 'box', wpm: 160, handle: '', progress: true, quality: 1080, musicVol: 0.3, aiVoice: 'af_heart', aiSpeed: 1, capY: null, duck: true, voiceVol: 1 };
+const DEF = { script: SAMPLE, look: 'captions', format: '9:16', theme: 'night', font: 'montserrat', upper: true, pos: 'middle', hl: 'box', wpm: 160, handle: '', progress: true, quality: 1080, musicVol: 0.3, aiVoice: 'af_heart', aiSpeed: 1, capY: null, duck: true, voiceVol: 1, trans: 'fade' };
 
 function load() {
   let s = {};
@@ -80,17 +82,22 @@ function load() {
   o.aiSpeed = Number.isFinite(+o.aiSpeed) ? clamp(Math.round(+o.aiSpeed * 20) / 20, 0.8, 1.2) : 1;
   o.capY = o.capY != null && Number.isFinite(+o.capY) ? clamp(+o.capY, 0.12, 0.88) : null;
   o.duck = o.duck !== false;
+  if (!OPTS.trans.some(t => t[0] === o.trans)) o.trans = 'fade';
   o.voiceVol = Number.isFinite(+o.voiceVol) ? clamp(+o.voiceVol, 0, 2) : 1;
   return o;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
 let S = load();
-let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null;
-const VERSION = '2.2';
+let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null, trans = [];
+const VERSION = '2.3';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
+const transOf = i => (i > 0 && (trans[i] || S.trans)) || 'cut';
+const transDur = tr => tr === 'cut' ? 0 : tr === 'fade' ? TR : 0.5;
 // how long a clip's trimmed part lasts on screen, at its speed
 const clipLen = m => Math.max(0.1, (m.out - m.in) / (m.speed || 1));
+const LOOKF = ['fitMode', 'zoom', 'px', 'py', 'rot', 'filter'], CLIPF = ['in', 'out', 'speed', 'vol', 'fit', 'endMode', 'useSound'];
+const pickF = (m, list) => { const o = {}; for (const k of list) if (m[k] !== undefined) o[k] = m[k]; return o; };
 // the browser's own looping only works when the whole clip is used
 function applyLoop(m) { if (m && m.el) m.el.loop = m.endMode !== 'hold' && m.in < 0.05 && m.out > m.dur - 0.05; }
 let TL = { scenes: [], total: 0 };
@@ -324,15 +331,59 @@ function gradientBg(ctx, W, H, t, seed, th) {
     ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
   }
 }
-function photoBg(ctx, W, H, img, p, idx, th) {
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  const iw = img.width, ih = img.height;
-  if (iw && ih) {
-    const z = 1.04 + 0.1 * p, s = Math.max(W / iw, H / ih) * z, dw = iw * s, dh = ih * s, d = idx % 4;
-    const ax = [0.35, 0.65, 0.5, 0.5][d], bx = [0.65, 0.35, 0.5, 0.5][d], ay = [0.5, 0.5, 0.35, 0.65][d], by = [0.5, 0.5, 0.65, 0.35][d];
-    ctx.drawImage(img, -(dw - W) * (ax + (bx - ax) * p), -(dh - H) * (ay + (by - ay) * p), dw, dh);
+const FILTERS = [['none', 'None'], ['vivid', 'Vivid'], ['warm', 'Warm'], ['cool', 'Cool'], ['bw', 'B&W'], ['vintage', 'Vintage'], ['drama', 'Drama']];
+// Colour looks made with blend modes, which every browser draws the same way
+function applyFilter(ctx, W, H, f) {
+  if (!f || f === 'none') return;
+  ctx.save();
+  const fill = (op, style, a) => { ctx.globalCompositeOperation = op; ctx.globalAlpha = a == null ? 1 : a; ctx.fillStyle = style; ctx.fillRect(0, 0, W, H); };
+  const self = (op, a) => { ctx.globalCompositeOperation = op; ctx.globalAlpha = a; try { ctx.drawImage(ctx.canvas, 0, 0, W, H); } catch (e) {} };
+  if (f === 'vivid') { self('overlay', 0.4); fill('saturation', 'hsl(0,100%,50%)', 0.16); }
+  else if (f === 'warm') fill('soft-light', 'rgb(255,145,40)', 0.55);
+  else if (f === 'cool') fill('soft-light', 'rgb(40,140,255)', 0.55);
+  else if (f === 'bw') { fill('saturation', '#808080'); self('overlay', 0.25); }
+  else if (f === 'vintage') { fill('saturation', '#808080', 0.45); fill('lighten', 'rgb(46,36,28)'); fill('soft-light', 'rgb(255,200,120)', 0.45); }
+  else if (f === 'drama') {
+    self('overlay', 0.45); fill('saturation', '#808080', 0.3);
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.55)');
+    fill('source-over', g);
   }
-  scrim(ctx, W, H, th, 0.46, 0.74);
+  ctx.restore();
+}
+let BLUR = null;
+// a soft, darkened copy behind a picture that is fitted rather than filled
+function blurBack(ctx, W, H, src, sw, sh, rot) {
+  const b = BLUR || (BLUR = document.createElement('canvas')), bw = 32, bh = Math.max(8, Math.round(32 * H / W));
+  if (b.width !== bw || b.height !== bh) { b.width = bw; b.height = bh; }
+  const c = b.getContext('2d'), side = rot % 180 !== 0, iw = side ? sh : sw, ih = side ? sw : sh, s = Math.max(bw / iw, bh / ih);
+  c.save(); c.translate(bw / 2, bh / 2); if (rot) c.rotate(rot * Math.PI / 180);
+  try { c.drawImage(src, -sw * s / 2, -sh * s / 2, sw * s, sh * s); } catch (e) {}
+  c.restore();
+  ctx.save(); ctx.imageSmoothingEnabled = true; try { ctx.imageSmoothingQuality = 'high'; } catch (e) {}
+  ctx.drawImage(b, 0, 0, W, H); ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(0, 0, W, H); ctx.restore();
+}
+// A photo or clip frame, placed the way its scene asks: fill or fit, zoom, nudge, rotation, then its filter
+function drawMedia(ctx, W, H, m, src, sw, sh, kb) {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  if (!src || !sw || !sh) return;
+  const rot = (((m.rot || 0) % 360) + 360) % 360, side = rot % 180 !== 0, iw = side ? sh : sw, ih = side ? sw : sh, fit = m.fitMode === 'fit';
+  if (fit) blurBack(ctx, W, H, src, sw, sh, rot);
+  let s = (fit ? Math.min(W / iw, H / ih) : Math.max(W / iw, H / ih)) * (m.zoom || 1), cx = W / 2, cy = H / 2;
+  if (kb) s *= 1.04 + 0.1 * kb.p;
+  const dw = iw * s, dh = ih * s;
+  if (kb) {
+    const ax = [0.35, 0.65, 0.5, 0.5][kb.d], bx = [0.65, 0.35, 0.5, 0.5][kb.d], ay = [0.5, 0.5, 0.35, 0.65][kb.d], by = [0.5, 0.5, 0.65, 0.35][kb.d];
+    if (dw > W) cx += (0.5 - (ax + (bx - ax) * kb.p)) * (dw - W);
+    if (dh > H) cy += (0.5 - (ay + (by - ay) * kb.p)) * (dh - H);
+  }
+  cx += (m.px || 0) * Math.abs(dw - W) / 2; cy += (m.py || 0) * Math.abs(dh - H) / 2;
+  cx = clamp(cx, Math.min(W - dw / 2, dw / 2), Math.max(W - dw / 2, dw / 2));
+  cy = clamp(cy, Math.min(H - dh / 2, dh / 2), Math.max(H - dh / 2, dh / 2));
+  ctx.save(); ctx.translate(cx, cy); if (rot) ctx.rotate(rot * Math.PI / 180);
+  try { ctx.drawImage(src, -sw * s / 2, -sh * s / 2, sw * s, sh * s); } catch (e) {}
+  ctx.restore();
+  applyFilter(ctx, W, H, m.filter);
 }
 function scrim(ctx, W, H, th, dark, light) {
   if (S.look === 'subtitles') {
@@ -348,23 +399,38 @@ function clipTime(m, x, hold) {
   if (hold || m.endMode === 'hold') return m.in + Math.min(Math.max(0, s), Math.max(0, span - 0.05));
   return m.in + (((s % span) + span) % span);
 }
-function videoBg(ctx, W, H, m, mode, th) {
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  let src = null, sw = 0, sh = 0;
-  if (mode === 'export' && m.exportFrame) { src = m.exportFrame; sw = src.width; sh = src.height; }
-  else if (mode !== 'thumb' && m.el && m.el.readyState >= 2 && m.el.videoWidth) { src = m.el; sw = m.el.videoWidth; sh = m.el.videoHeight; }
-  else if (m.poster) { src = m.poster; sw = src.width; sh = src.height; }
-  if (src && sw && sh) {
-    const k = Math.max(W / sw, H / sh), dw = sw * k, dh = sh * k;
-    try { ctx.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) {}
-  }
-  scrim(ctx, W, H, th, 0.3, 0.6);
-}
-function bg(ctx, W, H, sc, lt, t, th, mode) {
+// one scene's whole background: photo, clip or gradient, with its framing, filter and scrim
+function sceneBg(ctx, W, H, sc, lt, t, th, mode) {
   const m = sc.media;
-  if (m && m.kind === 'video') videoBg(ctx, W, H, m, mode, th);
-  else if (m) photoBg(ctx, W, H, m.img, clamp(lt / Math.max(sc.dur, 0.1), 0, 1), sc.i, th);
-  else gradientBg(ctx, W, H, t, sc.i, th);
+  if (!m) return gradientBg(ctx, W, H, t, sc.i, th);
+  if (m.kind === 'video') {
+    let src = null, sw = 0, sh = 0;
+    if (mode === 'export' && m.exportFrame) { src = m.exportFrame; sw = src.width; sh = src.height; }
+    else if (mode !== 'thumb' && m.el && m.el.readyState >= 2 && m.el.videoWidth) { src = m.el; sw = m.el.videoWidth; sh = m.el.videoHeight; }
+    else if (m.poster) { src = m.poster; sw = src.width; sh = src.height; }
+    drawMedia(ctx, W, H, m, src, sw, sh, null);
+    scrim(ctx, W, H, th, 0.3, 0.6);
+  } else {
+    drawMedia(ctx, W, H, m, m.img, m.img.width, m.img.height, { p: clamp(lt / Math.max(sc.dur, 0.1), 0, 1), d: sc.i % 4 });
+    scrim(ctx, W, H, th, 0.46, 0.74);
+  }
+}
+const LAYERS = [];
+function layer(k, W, H) {
+  let L = LAYERS[k];
+  if (!L) { const el = document.createElement('canvas'); L = LAYERS[k] = { el, c: el.getContext('2d', { alpha: false }) }; }
+  if (L.el.width !== W || L.el.height !== H) { L.el.width = W; L.el.height = H; }
+  L.c.setTransform(1, 0, 0, 1, 0, 0); L.c.globalAlpha = 1; L.c.globalCompositeOperation = 'source-over';
+  return L;
+}
+// how one scene gives way to the next (e runs 0 → 1, eased)
+function transition(ctx, W, H, tr, k, A, B) {
+  const e = out3(k);
+  if (tr === 'slide') { ctx.drawImage(A, -e * W, 0); ctx.drawImage(B, (1 - e) * W, 0); }
+  else if (tr === 'zoom') { ctx.drawImage(A, 0, 0); ctx.globalAlpha = e; const z = 1.2 - 0.2 * e; ctx.drawImage(B, (W - W * z) / 2, (H - H * z) / 2, W * z, H * z); ctx.globalAlpha = 1; }
+  else if (tr === 'dip') { ctx.drawImage(k < 0.5 ? A : B, 0, 0); ctx.fillStyle = 'rgba(0,0,0,' + (k < 0.5 ? k * 2 : 2 - k * 2).toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
+  else if (tr === 'wipe') { ctx.drawImage(A, 0, 0); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, e * W, H); ctx.clip(); ctx.drawImage(B, 0, 0); ctx.restore(); }
+  else { ctx.drawImage(A, 0, 0); ctx.globalAlpha = e; ctx.drawImage(B, 0, 0); ctx.globalAlpha = 1; }
 }
 let GRAIN = null;
 const grainPat = new WeakMap();
@@ -642,12 +708,14 @@ function drawFrame(ctx, W, H, t, o) {
   t = clamp(t, 0, Math.max(0, TL.total - 1e-4));
   const i = sceneAt(t), sc = scs[i], lt = t - sc.start;
   const mode = o.mode || (o.thumb ? 'thumb' : 'preview');
-  const prev = i > 0 && lt < TR ? scs[i - 1] : null;
+  const tr = transOf(i), TD = transDur(tr);
+  const prev = i > 0 && lt < TD ? scs[i - 1] : null;
   const sameClip = prev && sc.media && sc.media.kind === 'video' && prev.media === sc.media;
   if (prev && !sameClip) {
-    bg(ctx, W, H, prev, prev.dur + lt, t, th, mode);
-    ctx.globalAlpha = out3(lt / TR); bg(ctx, W, H, sc, lt, t, th, mode); ctx.globalAlpha = 1;
-  } else bg(ctx, W, H, sc, lt, t, th, mode);
+    const A = layer(0, W, H), B = layer(1, W, H);
+    sceneBg(A.c, W, H, prev, prev.dur + lt, t, th, mode); sceneBg(B.c, W, H, sc, lt, t, th, mode);
+    transition(ctx, W, H, tr, clamp(lt / TD, 0, 1), A.el, B.el);
+  } else sceneBg(ctx, W, H, sc, lt, t, th, mode);
   if (prev) {
     const fade = prev.kind === 'title' || sc.kind === 'title' || S.look === 'story' || S.look === 'typewriter';
     const a = (1 - clamp(lt / 0.2, 0, 1)) * textFade(prev, prev.dur);
@@ -688,7 +756,7 @@ function visibleClips(t) {
   const scs = TL.scenes, out = [];
   if (!scs.length) return out;
   t = clamp(t, 0, Math.max(0, TL.total - 1e-4));
-  const i = sceneAt(t), sc = scs[i], lt = t - sc.start, p = i > 0 && lt < TR ? scs[i - 1] : null;
+  const i = sceneAt(t), sc = scs[i], lt = t - sc.start, p = i > 0 && lt < transDur(transOf(i)) ? scs[i - 1] : null;
   // a clip that played right to its end holds its last frame through the crossfade instead of starting over
   if (p && p.media && p.media.kind === 'video' && p.media !== sc.media) out.push({ m: p.media, x: p.dur + lt + p.clipOffset, hold: Math.abs(p.clipOffset + p.dur - clipLen(p.media)) < 0.05 });
   if (sc.media && sc.media.kind === 'video') out.push({ m: sc.media, x: lt + sc.clipOffset });
@@ -1577,7 +1645,8 @@ async function openClipFeeds(M, W, H, n, job) {
       const track = await input.getPrimaryVideoTrack();
       if (!track || !(await track.canDecode())) throw new Error('This browser can’t read the clip ' + m.name + ' for a fast export');
       const first = await track.getFirstTimestamp();
-      const sink = new M.CanvasSink(track, { width: W, height: H, fit: 'cover', poolSize: 2 });
+      const dw = await track.getDisplayWidth(), dh = await track.getDisplayHeight(), k = Math.min(1, 1920 / Math.max(dw, dh, 1));
+      const sink = new M.CanvasSink(track, { width: Math.max(2, Math.round(dw * k)), height: Math.max(2, Math.round(dh * k)), fit: 'fill', poolSize: 2 });
       feeds.get(m).it = sink.canvasesAtTimestamps(seqs.get(m).map(x => x + first));
     }
   } catch (e) { await closeClipFeeds(feeds); throw e; }
@@ -1665,7 +1734,7 @@ function saveUI(msg) {
   $('#save').hidden = !DL;
   $('#save').textContent = share ? 'Download' : 'Save video';
   $('#save').className = share ? 'btn' : 'primary';
-  $('#saveNote').textContent = msg || (share ? (IOS ? 'Tap Save to phone, then Save Video, and it goes into your Photos.' : 'Save to phone opens your share menu. Download puts it in your Downloads folder.') : 'The video goes to your Downloads folder.');
+  $('#saveNote').textContent = msg || (share ? (IOS ? 'Tap Save or share, then Save Video to put it in Photos, or pick WhatsApp, TikTok or another app.' : 'Save or share opens your share menu: pick WhatsApp, TikTok or another app. Download puts it in your Downloads folder.') : 'The video goes to your Downloads folder.');
 }
 function done(res) {
   if (lastOut) URL.revokeObjectURL(lastOut.url);
@@ -1768,6 +1837,7 @@ async function saveProject() {
     files.set(fid, m.file);
     const o = { fid, kind: m.kind, name: m.name };
     if (m.kind === 'video') Object.assign(o, { in: m.in, out: m.out, speed: m.speed, vol: m.vol, fit: m.fit || 'whole', endMode: m.endMode, useSound: !!m.useSound });
+    Object.assign(o, pickF(m, LOOKF));
     objs.push(o); idx.set(m, objs.length - 1); return objs.length - 1;
   };
   const scenes = media.map(keep);
@@ -1780,7 +1850,7 @@ async function saveProject() {
   if (music && music.file) { mu = { fid: fileId(music.file), name: music.name }; files.set(mu.fid, music.file); }
   if (!storedIds) storedIds = new Set((await idb('files', 'readonly', st => st.getAllKeys())) || []);
   for (const [fid, f] of files) if (!storedIds.has(fid)) { await idb('files', 'readwrite', st => st.put(f, fid)); storedIds.add(fid); }
-  await idb('state', 'readwrite', st => st.put({ v: 1, script: S.script, objs, scenes, durOv: durOv.slice(0, scenes.length), sync, voice: v, music: mu, sel, playT, ovl, saved: Date.now() }, 'project'));
+  await idb('state', 'readwrite', st => st.put({ v: 1, script: S.script, objs, scenes, durOv: durOv.slice(0, scenes.length), sync, voice: v, music: mu, sel, playT, ovl, trans, saved: Date.now() }, 'project'));
   const extra = Array.from(storedIds).filter(id => !files.has(id));
   if (extra.length) { await idb('files', 'readwrite', st => { extra.forEach(id => st.delete(id)); }); extra.forEach(id => storedIds.delete(id)); }
   if (!saveProject.asked && navigator.storage && navigator.storage.persist) { saveProject.asked = true; navigator.storage.persist().catch(() => {}); }
@@ -1802,6 +1872,7 @@ async function restoreProject() {
         if (f) {
           m = o.kind === 'video' ? await loadClip(f) : { kind: 'image', img: await loadImage(f), name: o.name, file: f };
           m.name = o.name || m.name;
+          Object.assign(m, pickF(o, LOOKF));
           if (o.kind === 'video') { Object.assign(m, { in: clamp(+o.in || 0, 0, m.dur), out: clamp(+o.out || m.dur, 0, m.dur), speed: +o.speed || 1, vol: o.vol == null ? 1 : +o.vol, fit: o.fit, endMode: o.endMode || 'loop' }); if (m.out - m.in < 0.1) { m.in = 0; m.out = m.dur; } applyLoop(m); if (o.useSound) { await ensureClipAudio(m); m.useSound = !!m.audio; } }
         }
       } catch (e) { console.warn(e); m = null; }
@@ -1817,6 +1888,7 @@ async function restoreProject() {
       try { const f = await getFile(pj.music.fid); if (f) { const b = await decodeFile(f); music = { buffer: b, dur: b.duration, name: pj.music.name, file: f }; } } catch (e) { music = null; }
     }
     sync = voice && Array.isArray(pj.sync) ? pj.sync : null;
+    trans = Array.isArray(pj.trans) ? pj.trans.map(t => OPTS.trans.some(x => x[0] === t) ? t : null) : [];
     ovl = Array.isArray(pj.ovl) ? pj.ovl.map(a => Array.isArray(a) ? a.filter(o => o && typeof o.text === 'string') : []) : [];
     sel = pj.sel || 0; playT = +pj.playT || 0;
     note.textContent = 'Your saved project is back. Tap Start over in the Script box for a fresh one.';
@@ -1827,7 +1899,7 @@ async function startOver() {
   if (busy || aiBusy) return;
   remember();
   S.script = ''; $('#script').value = '';
-  media = []; durOv = []; sync = null; voice = null; music = null; ovl = []; selText = null; sel = 0; playT = 0;
+  media = []; durOv = []; sync = null; voice = null; music = null; ovl = []; trans = []; selText = null; sel = 0; playT = 0;
   refresh();
   renderPhotoNote();
 }
@@ -1888,14 +1960,14 @@ function renderClipBox() {
   box.hidden = false;
   if (!m) {
     box.innerHTML = '<div class="cbhead"><b>Scene ' + (sel + 1) + '</b><span>' + fmtS(sc.dur) + '</span></div><p class="hint">No photo or clip in this scene yet.</p>' +
-      '<div class="btns"><button type="button" class="btn" data-act="photo">Add photo or clip</button></div>';
+      '<div class="btns"><button type="button" class="btn" data-act="photo">Add photo or clip</button></div>' + transControls();
     return;
   }
   if (m.kind !== 'video') {
     const fixed = sync && sc.kind !== 'clip';
     box.innerHTML = '<div class="cbhead"><b>Scene ' + (sel + 1) + ' photo</b><span>' + fmtS(sc.dur) + '</span></div>' +
       '<div class="btns">' + (fixed ? '<span class="tag">Length follows the voiceover</span>' : '<button type="button" class="btn sq" data-act="minus" aria-label="Shorter">−</button><button type="button" class="btn sq" data-act="plus" aria-label="Longer">+</button>') +
-      '<button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove photo</button></div>';
+      '<button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove photo</button></div>' + lookControls(m) + transControls();
     return;
   }
   const sp = m.speed || 1, vol = Math.round((m.vol == null ? 1 : m.vol) * 100);
@@ -1909,7 +1981,23 @@ function renderClipBox() {
     [0.5, 0.75, 1, 1.5, 2].map(v => '<button type="button" role="radio" data-speed="' + v + '" aria-checked="' + (Math.abs(sp - v) < 1e-6) + '">' + v + '×</button>').join('') + '</div></div>' +
     '<div class="field"><span class="lbl">Clip sound</span><div class="btns tight"><button type="button" class="btn" data-act="sound" aria-pressed="' + (!!m.useSound) + '"' + (m.noAudio ? ' disabled' : '') + '>' + (m.noAudio ? 'No sound in clip' : m.useSound ? 'On' : 'Off') + '</button>' +
     '<label class="cvol"><input type="range" data-vol min="0" max="200" step="5" value="' + vol + '" aria-label="Clip volume"' + (m.useSound ? '' : ' disabled') + '><output data-out="vol">' + vol + '%</output></label></div></div>' +
-    '<div class="btns">' + clipRowButtons(m) + '<button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove clip</button></div>';
+    '<div class="btns">' + clipRowButtons(m) + '<button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove clip</button></div>' + lookControls(m) + transControls();
+}
+function lookControls(m) {
+  const z = m.zoom || 1, fit = m.fitMode === 'fit';
+  const slider = (k, label, min, max, step, v, out) => '<div class="tlab"><span>' + label + '</span><output data-out="' + k + '">' + out + '</output></div><input type="range" data-frz="' + k + '" min="' + min + '" max="' + max + '" step="' + step + '" value="' + v + '" aria-label="' + label + '">';
+  return '<div class="field"><span class="lbl">Filter</span><div class="seg" role="radiogroup" aria-label="Filter">' + FILTERS.map(f => '<button type="button" role="radio" data-flt="' + f[0] + '" aria-checked="' + ((m.filter || 'none') === f[0]) + '">' + f[1] + '</button>').join('') + '</div></div>' +
+    '<div class="field"><span class="lbl">Framing</span><div class="btns tight">' +
+    '<button type="button" class="btn" data-frm="fill" aria-pressed="' + !fit + '">Fill</button><button type="button" class="btn" data-frm="fit" aria-pressed="' + fit + '">Fit</button>' +
+    '<button type="button" class="btn" data-frm="rot">Rotate ' + ((m.rot || 0) % 360) + '°</button><button type="button" class="btn" data-frm="reset">Reset</button></div>' +
+    slider('zoom', 'Zoom', 1, 3, 0.05, z, z.toFixed(2).replace(/0$/, '') + '×') +
+    slider('px', 'Left · right', -1, 1, 0.02, m.px || 0, '') + slider('py', 'Up · down', -1, 1, 0.02, m.py || 0, '') + '</div>';
+}
+function transControls() {
+  const cur = trans[sel] || '';
+  if (sel === 0) return '<div class="field"><span class="lbl">Transition</span><p class="hint">The first scene starts the video, so it has no transition in.</p></div>';
+  return '<div class="field"><span class="lbl">Transition into this scene</span><div class="seg" role="radiogroup" aria-label="Transition">' +
+    [['', 'Same as all']].concat(OPTS.trans).map(t => '<button type="button" role="radio" data-trn="' + t[0] + '" aria-checked="' + (cur === t[0]) + '">' + t[1] + '</button>').join('') + '</div></div>';
 }
 function clipRowButtons(m) {
   const locked = !!voice && !sync, whole = m.fit !== 'cut' && !locked;
@@ -1992,19 +2080,19 @@ let sel = 0;
 const UNDO = [], REDO = [];
 const sceneLine = r => r.kind === 'title' ? '# ' + r.text : r.kind === 'clip' ? '[clip]' : r.text;
 function rows() {
-  return TL.scenes.map((sc, i) => ({ kind: sc.kind, text: sc.text, m: media[i] || null, d: durOv[i], v: sync && sync[i] ? { from: sync[i].from, len: sync[i].len } : null, o: (ovl[i] || []).map(o => Object.assign({}, o)) }));
+  return TL.scenes.map((sc, i) => ({ kind: sc.kind, text: sc.text, m: media[i] || null, d: durOv[i], v: sync && sync[i] ? { from: sync[i].from, len: sync[i].len } : null, o: (ovl[i] || []).map(o => Object.assign({}, o)), tr: trans[i] || null }));
 }
 function applyRows(list, pick, pre) {
   const script = list.map(sceneLine).join('\n\n'), check = parse(script);
   if (check.length !== list.length || check.some((c, i) => c.kind !== list[i].kind || c.text !== list[i].text)) {
-    if (pre) for (const [m, v] of pre.ms) { Object.assign(m, v); applyLoop(m); }
+    if (pre) for (const [m, v] of pre.ms) { const o = Object.assign({}, v); delete o._look; Object.assign(m, o); applyLoop(m); }
     $('#photoNote').textContent = 'That change would alter the wording of a scene, so it wasn’t made. Edit the script instead.';
     return false;
   }
   const voiceOk = !!(voice && (voice.made || voice.rec) && voice.key === scriptKey()), hadSync = !!sync;
   remember(pre);
   S.script = script; $('#script').value = script;
-  media = list.map(r => r.m || null); durOv = list.map(r => r.d); ovl = list.map(r => r.o || []); selText = null;
+  media = list.map(r => r.m || null); durOv = list.map(r => r.d); ovl = list.map(r => r.o || []); trans = list.map(r => r.tr || null); selText = null;
   sync = hadSync ? list.map(r => r.v || { from: 0, len: 0 }) : null;
   sel = clamp(pick == null ? sel : pick, 0, Math.max(0, list.length - 1));
   build();
@@ -2018,7 +2106,7 @@ async function cloneMedia(m) {
   if (!m) return null;
   if (m.kind !== 'video') return Object.assign({}, m);
   const c = await loadClip(m.file);
-  Object.assign(c, { in: m.in, out: m.out, speed: m.speed, vol: m.vol, fit: m.fit, endMode: m.endMode, useSound: m.useSound, audio: m.audio, noAudio: m.noAudio, name: m.name, fileId: m.fileId });
+  Object.assign(c, pickF(m, CLIPF), pickF(m, LOOKF), { audio: m.audio, noAudio: m.noAudio, name: m.name });
   applyLoop(c);
   return c;
 }
@@ -2070,7 +2158,7 @@ async function sceneOp(op) {
       m2.in = cut; m.out = cut; applyLoop(m); applyLoop(m2);
       const o = q.o || [];
       q.o = o.filter(t => t.at < info.lt);
-      list.splice(j + 1, 0, { kind: 'clip', text: '', m: m2, d: undefined, v: sync ? { from: 0, len: 0 } : null, o: o.filter(t => t.at >= info.lt).map(t => Object.assign(t, { at: Math.round((t.at - info.lt) * 100) / 100 })) });
+      list.splice(j + 1, 0, { kind: 'clip', text: '', m: m2, d: undefined, tr: 'cut', v: sync ? { from: 0, len: 0 } : null, o: o.filter(t => t.at >= info.lt).map(t => Object.assign(t, { at: Math.round((t.at - info.lt) * 100) / 100 })) });
       return applyRows(list, j + 1, pre);
     }
     const w = sc.words, k = info.k;
@@ -2082,7 +2170,7 @@ async function sceneOp(op) {
     }
     const cutT = v1 && v1.len != null && q.v ? v1.len : sc.wt[k].t0, o = q.o || [];
     list.splice(j, 1, { kind: q.kind, text: w.slice(0, k).join(' '), m: q.m, d: undefined, v: v1, o: o.filter(t => t.at < cutT) },
-      { kind: q.kind, text: w.slice(k).join(' '), m: q.m, d: undefined, v: v2, o: o.filter(t => t.at >= cutT).map(t => Object.assign(t, { at: Math.round((t.at - cutT) * 100) / 100 })) });
+      { kind: q.kind, text: w.slice(k).join(' '), m: q.m, d: undefined, tr: 'cut', v: v2, o: o.filter(t => t.at >= cutT).map(t => Object.assign(t, { at: Math.round((t.at - cutT) * 100) / 100 })) });
     return applyRows(list, j + 1);
   }
 }
@@ -2098,8 +2186,8 @@ async function addScenes(files) {
 }
 function snap() {
   const ms = new Map();
-  for (const m of media) if (m && !ms.has(m) && m.kind === 'video') ms.set(m, { in: m.in, out: m.out, speed: m.speed, vol: m.vol, fit: m.fit, endMode: m.endMode, useSound: m.useSound });
-  return { script: S.script, media: media.slice(), durOv: durOv.slice(), sync: sync ? sync.map(r => ({ from: r.from, len: r.len })) : null, voice, voiceKey: voice ? voice.key : null, music, ms, sel, ovl: ovl.map(a => (a || []).map(o => Object.assign({}, o))), capY: S.capY };
+  for (const m of media) if (m && !ms.has(m)) ms.set(m, Object.assign(m.kind === 'video' ? pickF(m, CLIPF) : {}, pickF(m, LOOKF), { _look: LOOKF.filter(k => m[k] === undefined) }));
+  return { script: S.script, media: media.slice(), durOv: durOv.slice(), sync: sync ? sync.map(r => ({ from: r.from, len: r.len })) : null, voice, voiceKey: voice ? voice.key : null, music, ms, sel, ovl: ovl.map(a => (a || []).map(o => Object.assign({}, o))), capY: S.capY, trans: trans.slice() };
 }
 function remember(pre) {
   UNDO.push(pre || snap()); if (UNDO.length > 30) UNDO.shift();
@@ -2110,8 +2198,9 @@ function restore(st) {
   media = st.media.slice(); durOv = st.durOv.slice(); sync = st.sync ? st.sync.map(r => ({ from: r.from, len: r.len })) : null;
   voice = st.voice; if (voice && st.voiceKey != null) voice.key = st.voiceKey;
   music = st.music;
-  for (const [m, v] of st.ms) { Object.assign(m, v); applyLoop(m); }
+  for (const [m, v] of st.ms) { for (const k of v._look || []) delete m[k]; const o = Object.assign({}, v); delete o._look; Object.assign(m, o); applyLoop(m); }
   sel = st.sel || 0; selText = null;
+  trans = (st.trans || []).slice();
   ovl = (st.ovl || []).map(a => (a || []).map(o => Object.assign({}, o)));
   S.capY = st.capY == null ? null : st.capY;
   refresh();
@@ -2404,6 +2493,28 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && REC && REC
 $('#vvol').addEventListener('input', e => { S.voiceVol = clamp(+e.target.value / 100, 0, 2); $('#vvVal').textContent = Math.round(S.voiceVol * 100) + '%'; save(); });
 $('#tDuck').addEventListener('change', e => { S.duck = e.target.checked; save(); });
 
+/* ---------- look events ---------- */
+$('#clipBox').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || busy || b.disabled || selText) return;
+  const m = media[sel];
+  if (b.dataset.trn != null) { remember(); trans[sel] = b.dataset.trn || null; refresh(); show(TL.scenes[sel] ? TL.scenes[sel].start : playT); return; }
+  if (!m) return;
+  if (b.dataset.flt) { remember(); m.filter = b.dataset.flt === 'none' ? undefined : b.dataset.flt; refresh(); }
+  else if (b.dataset.frm === 'fill' || b.dataset.frm === 'fit') { remember(); m.fitMode = b.dataset.frm === 'fit' ? 'fit' : undefined; refresh(); }
+  else if (b.dataset.frm === 'rot') { remember(); m.rot = ((m.rot || 0) + 90) % 360 || undefined; refresh(); }
+  else if (b.dataset.frm === 'reset') { remember(); for (const k of LOOKF) if (k !== 'filter') delete m[k]; refresh(); }
+});
+$('#clipBox').addEventListener('input', e => {
+  const t = e.target, m = media[sel], k = t.dataset.frz;
+  if (!k || !m || busy || selText) return;
+  editStart();
+  m[k] = clamp(+t.value, k === 'zoom' ? 1 : -1, k === 'zoom' ? 3 : 1);
+  if (k === 'zoom') { const o = $('#clipBox [data-out="zoom"]'); if (o) o.textContent = m.zoom.toFixed(2).replace(/0$/, '') + '×'; }
+  LC.clear(); show(playT);
+});
+$('#clipBox').addEventListener('change', e => { if (e.target.dataset.frz && !selText) { renderStrip(); scheduleThumbs(); queueSave(); } });
+
 /* ---------- website check: notice when the site's security settings block the tool ---------- */
 function serverNotice(what) {
   let el = $('#serverNote');
@@ -2453,6 +2564,6 @@ function useNormalDownloads() {
 }
 if (hasClaude()) useClaudeSaving();
 else setTimeout(() => { if (hasClaude()) useClaudeSaving(); else useNormalDownloads(); }, 1200);
-window.__stv = { exportNow: startExport, out: () => lastOut, dbg: () => ({ drag: drag ? { kind: drag.h.kind, moved: drag.moved } : null, playT, sel, undo: UNDO.length, redo: REDO.length, script: S.script, sync, ovl, capY: S.capY, selText, selCap, cv: [cv.width, cv.height], hits: HITS.map(h => ({ kind: h.kind, i: h.i, k: h.k, x0: Math.round(h.x0), y0: Math.round(h.y0), x1: Math.round(h.x1), y1: Math.round(h.y1) })), media: media.map(m => m && m.kind === 'video' ? { in: m.in, out: m.out, speed: m.speed, vol: m.vol, dur: m.dur, name: m.name } : m ? 'image' : null) }), state: () => ({ S, total: TL.total, scenes: TL.scenes.map(s => ({ kind: s.kind, text: s.text, start: s.start, dur: s.dur })) }),
+window.__stv = { exportNow: startExport, out: () => lastOut, dbg: () => ({ trans, look: media.map(m => m ? Object.assign({ kind: m.kind }, pickF(m, LOOKF)) : null), drag: drag ? { kind: drag.h.kind, moved: drag.moved } : null, playT, sel, undo: UNDO.length, redo: REDO.length, script: S.script, sync, ovl, capY: S.capY, selText, selCap, cv: [cv.width, cv.height], hits: HITS.map(h => ({ kind: h.kind, i: h.i, k: h.k, x0: Math.round(h.x0), y0: Math.round(h.y0), x1: Math.round(h.x1), y1: Math.round(h.y1) })), media: media.map(m => m && m.kind === 'video' ? { in: m.in, out: m.out, speed: m.speed, vol: m.vol, dur: m.dur, name: m.name } : m ? 'image' : null) }), state: () => ({ S, total: TL.total, scenes: TL.scenes.map(s => ({ kind: s.kind, text: s.text, start: s.start, dur: s.dur })) }),
   set: o => { if (o.look && !('font' in o)) o = Object.assign({ font: LOOKS[o.look].font, upper: LOOKS[o.look].upper }, o); Object.assign(S, o); changed(); }, frame: (t, W, H) => { const c = document.createElement('canvas'); c.width = W; c.height = H; drawFrame(c.getContext('2d'), W, H, t); return c.toDataURL('image/jpeg', 0.9); } };
 }
