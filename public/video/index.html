@@ -93,6 +93,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .stext{font-size:15px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .kind{font-size:13px;font-weight:700;color:var(--muted);margin-right:6px}
 .smeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.smeta [aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .dur{font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;min-width:3.4em}
 .tag{font-size:13px;color:var(--muted)}
 .empty{padding:16px;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
@@ -159,8 +160,8 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   <div class="block">
    <h2>Scenes <small id="sceneMeta"></small></h2>
    <ol class="scenes" id="scenes"></ol>
-   <div class="btns"><button class="btn" id="bPhotos" type="button">Add photos</button><button class="btn" id="bPhotosX" type="button" hidden>Remove photos</button><button class="btn" id="bAuto" type="button" hidden>Reset timing</button></div>
-   <p class="hint" id="photoNote">Photos fill the scenes in order and repeat if you add fewer photos than scenes. Tap a scene to preview it.</p>
+   <div class="btns"><button class="btn" id="bPhotos" type="button">Add photos or clips</button><button class="btn" id="bPhotosX" type="button" hidden>Remove all</button><button class="btn" id="bAuto" type="button" hidden>Reset timing</button></div>
+   <p class="hint" id="photoNote">Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. A clip loops if it’s shorter than its scene. Tap a scene to preview it.</p>
   </div>
 
   <div class="block">
@@ -207,8 +208,8 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   <div class="btns end"><span class="clock" id="syncClock"></span><button class="btn" id="syncCancel" type="button">Cancel</button><button class="primary" id="syncBtn" type="button">Start</button></div>
  </div>
 </div>
-<input class="vh" type="file" id="fPhotos" accept="image/*" multiple tabindex="-1" aria-hidden="true">
-<input class="vh" type="file" id="fPhoto" accept="image/*" tabindex="-1" aria-hidden="true">
+<input class="vh" type="file" id="fPhotos" accept="image/*,video/*" multiple tabindex="-1" aria-hidden="true">
+<input class="vh" type="file" id="fPhoto" accept="image/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 

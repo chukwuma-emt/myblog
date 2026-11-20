@@ -83,7 +83,7 @@ function load() {
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
 let S = load();
-let imgs = [], durOv = [], sync = null, voice = null, music = null;
+let media = [], durOv = [], sync = null, voice = null, music = null;
 let TL = { scenes: [], total: 0 };
 const LC = new Map();
 let IN_CLAUDE = false;
@@ -179,7 +179,13 @@ function chunksFor(sc) {
 function build() {
   const raw = parse(S.script), n = raw.length;
   if (sync && (!voice || sync.length !== n)) sync = null;
-  let durs = raw.map((s, i) => durOv[i] != null ? durOv[i] : autoDur(s));
+  const sharedAt = i => !!media[i] && (media[i] === media[i - 1] || media[i] === media[i + 1]);
+  let durs = raw.map((s, i) => {
+    if (durOv[i] != null) return durOv[i];
+    const m = media[i];
+    if (m && m.kind === 'video' && !voice && !sharedAt(i)) return clamp(m.dur, 1, 60);
+    return autoDur(s);
+  });
   const starts = [];
   if (sync) {
     const end = Math.max(voice.dur + 0.4, sync[n - 1] + 0.8);
@@ -195,8 +201,12 @@ function build() {
     let acc = 0;
     for (const d of durs) { starts.push(acc); acc += d; }
   }
-  const scenes = raw.map((s, i) => Object.assign(s, { start: starts[i], dur: durs[i], img: imgs[i] || null }));
-  scenes.forEach(sc => { wordTimes(sc); chunksFor(sc); });
+  const scenes = raw.map((s, i) => Object.assign(s, { start: starts[i], dur: durs[i], media: media[i] || null }));
+  scenes.forEach((sc, i) => {
+    const p = scenes[i - 1];
+    sc.clipOffset = p && sc.media && sc.media.kind === 'video' && p.media === sc.media ? p.clipOffset + p.dur : 0;
+    wordTimes(sc); chunksFor(sc);
+  });
   TL = { scenes, total: n ? scenes[n - 1].start + scenes[n - 1].dur : 0 };
 }
 
@@ -280,15 +290,34 @@ function photoBg(ctx, W, H, img, p, idx, th) {
     const ax = [0.35, 0.65, 0.5, 0.5][d], bx = [0.65, 0.35, 0.5, 0.5][d], ay = [0.5, 0.5, 0.35, 0.65][d], by = [0.5, 0.5, 0.65, 0.35][d];
     ctx.drawImage(img, -(dw - W) * (ax + (bx - ax) * p), -(dh - H) * (ay + (by - ay) * p), dw, dh);
   }
+  scrim(ctx, W, H, th, 0.46, 0.74);
+}
+function scrim(ctx, W, H, th, dark, light) {
   if (S.look === 'subtitles') {
     const g = ctx.createLinearGradient(0, H * 0.45, 0, H);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.55)');
     ctx.fillStyle = g;
-  } else ctx.fillStyle = th.light ? 'rgba(244,243,239,0.74)' : 'rgba(0,0,0,0.46)';
+  } else ctx.fillStyle = th.light ? 'rgba(244,243,239,' + light + ')' : 'rgba(0,0,0,' + dark + ')';
   ctx.fillRect(0, 0, W, H);
 }
-function bg(ctx, W, H, sc, lt, t, th) {
-  if (sc.img) photoBg(ctx, W, H, sc.img, clamp(lt / Math.max(sc.dur, 0.1), 0, 1), sc.i, th);
+// Where a clip is at a moment that is x seconds into its scene (or run of scenes)
+function clipTime(m, x) { return m.endMode === 'hold' ? Math.min(Math.max(0, x), Math.max(0, m.dur - 0.05)) : ((x % m.dur) + m.dur) % m.dur; }
+function videoBg(ctx, W, H, m, mode, th) {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  let src = null, sw = 0, sh = 0;
+  if (mode === 'export' && m.exportFrame) { src = m.exportFrame; sw = src.width; sh = src.height; }
+  else if (mode !== 'thumb' && m.el && m.el.readyState >= 2 && m.el.videoWidth) { src = m.el; sw = m.el.videoWidth; sh = m.el.videoHeight; }
+  else if (m.poster) { src = m.poster; sw = src.width; sh = src.height; }
+  if (src && sw && sh) {
+    const k = Math.max(W / sw, H / sh), dw = sw * k, dh = sh * k;
+    try { ctx.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) {}
+  }
+  scrim(ctx, W, H, th, 0.3, 0.6);
+}
+function bg(ctx, W, H, sc, lt, t, th, mode) {
+  const m = sc.media;
+  if (m && m.kind === 'video') videoBg(ctx, W, H, m, mode, th);
+  else if (m) photoBg(ctx, W, H, m.img, clamp(lt / Math.max(sc.dur, 0.1), 0, 1), sc.i, th);
   else gradientBg(ctx, W, H, t, sc.i, th);
 }
 let GRAIN = null;
@@ -496,14 +525,18 @@ function drawFrame(ctx, W, H, t, o) {
   }
   t = clamp(t, 0, Math.max(0, TL.total - 1e-4));
   const i = sceneAt(t), sc = scs[i], lt = t - sc.start;
+  const mode = o.mode || (o.thumb ? 'thumb' : 'preview');
   const prev = i > 0 && lt < TR ? scs[i - 1] : null;
+  const sameClip = prev && sc.media && sc.media.kind === 'video' && prev.media === sc.media;
+  if (prev && !sameClip) {
+    bg(ctx, W, H, prev, prev.dur + lt, t, th, mode);
+    ctx.globalAlpha = out3(lt / TR); bg(ctx, W, H, sc, lt, t, th, mode); ctx.globalAlpha = 1;
+  } else bg(ctx, W, H, sc, lt, t, th, mode);
   if (prev) {
-    bg(ctx, W, H, prev, prev.dur + lt, t, th);
-    ctx.globalAlpha = out3(lt / TR); bg(ctx, W, H, sc, lt, t, th); ctx.globalAlpha = 1;
     const fade = prev.kind === 'title' || sc.kind === 'title' || S.look === 'story' || S.look === 'typewriter';
     const a = 1 - clamp(lt / 0.2, 0, 1);
     if (fade && a > 0) drawText(ctx, W, H, U, prev, prev.dur - 1e-3, a, th);
-  } else bg(ctx, W, H, sc, lt, t, th);
+  }
   drawText(ctx, W, H, U, sc, lt, 1, th);
   if (!o.thumb) overlays(ctx, W, H, U, t, th);
   ctx.restore();
@@ -520,8 +553,55 @@ function sizePreview() {
   const w = even(fm.w * k), h = even(fm.h * k);
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; LC.clear(); }
 }
+/* clips: one hidden, muted <video> per clip plays in step with the preview */
+const clipHost = document.createElement('div');
+clipHost.setAttribute('aria-hidden', 'true');
+clipHost.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none;overflow:hidden;z-index:-1';
+document.body.appendChild(clipHost);
+const allClips = () => Array.from(new Set(media.filter(m => m && m.kind === 'video')));
+function visibleClips(t) {
+  const scs = TL.scenes, out = [];
+  if (!scs.length) return out;
+  t = clamp(t, 0, Math.max(0, TL.total - 1e-4));
+  const i = sceneAt(t), sc = scs[i], lt = t - sc.start, p = i > 0 && lt < TR ? scs[i - 1] : null;
+  if (p && p.media && p.media.kind === 'video' && p.media !== sc.media) out.push({ m: p.media, x: p.dur + lt + p.clipOffset });
+  if (sc.media && sc.media.kind === 'video') out.push({ m: sc.media, x: lt + sc.clipOffset });
+  out.forEach(v => { v.ct = clipTime(v.m, v.x); v.ended = v.m.endMode === 'hold' && v.x >= v.m.dur; });
+  return out;
+}
+function syncClips(t, run) {
+  const want = new Map(visibleClips(t).map(v => [v.m, v]));
+  for (const m of allClips()) {
+    const el = m.el, w = want.get(m);
+    if (!w) { if (!el.paused) el.pause(); continue; }
+    if (run && !w.ended) {
+      // small drift: nudge the speed so the clip catches up smoothly; big drift: jump
+      let d = w.ct - el.currentTime;
+      if (m.endMode !== 'hold' && m.dur > 0) d = ((d % m.dur) + 1.5 * m.dur) % m.dur - m.dur / 2;
+      if (Math.abs(d) > 0.3) { try { el.currentTime = w.ct; } catch (e) {} d = 0; }
+      if (Math.abs(d) > 0.08) m.rate = d > 0 ? 1.12 : 0.9; else if (Math.abs(d) < 0.02) m.rate = 1;
+      const r = m.rate || 1; if (el.playbackRate !== r) el.playbackRate = r;
+      if (el.paused) el.play().catch(() => {});
+    } else {
+      if (!el.paused) el.pause();
+      if (m.rate && m.rate !== 1) { m.rate = 1; el.playbackRate = 1; }
+      if (Math.abs(el.currentTime - w.ct) > 0.05) { try { el.currentTime = w.ct; } catch (e) {} }
+    }
+  }
+}
+function pauseClips() { for (const m of allClips()) if (!m.el.paused) m.el.pause(); }
+// iPhones (and Low Power Mode) only let a clip start on its own once it has played after a tap
+function unlockClips() {
+  for (const m of allClips()) {
+    if (m.unlocked) continue;
+    let p; try { p = m.el.play(); } catch (e) { continue; }
+    if (p && p.then) p.then(() => { m.unlocked = true; if (!playing) m.el.pause(); if (!playing && !busy) syncClips(playT, false); }, () => {});
+  }
+}
+document.addEventListener('click', unlockClips, true);
 function show(t) {
   playT = clamp(t, 0, TL.total);
+  if (!playing && !busy) syncClips(playT, false);
   drawFrame(pctx, cv.width, cv.height, playT);
   $('#clock').textContent = fmtT(playT) + ' / ' + fmtT(TL.total);
   $('#seek').value = TL.total ? Math.round(playT / TL.total * 1000) : 0;
@@ -562,7 +642,32 @@ function scheduleAudio(ctx, out, offset, total, when) {
     s.connect(g); g.connect(out);
     s.start(when, offset % music.buffer.duration); s.stop(when + end + 0.05); list.push(s);
   }
+  scheduleClipSound(ctx, out, offset, when, list);
   return { nodes: list, when };
+}
+function clipRuns() {
+  const runs = [], scs = TL.scenes;
+  scs.forEach((sc, i) => {
+    const m = sc.media;
+    if (!m || m.kind !== 'video') return;
+    const last = runs[runs.length - 1];
+    if (last && last.m === m && last.end === i - 1) { last.end = i; last.t1 = sc.start + sc.dur; }
+    else runs.push({ m, end: i, t0: sc.start, t1: sc.start + sc.dur });
+  });
+  return runs;
+}
+const hasClipSound = () => clipRuns().some(r => r.m.useSound && r.m.audio);
+function scheduleClipSound(ctx, out, offset, when, list) {
+  for (const r of clipRuns()) {
+    const a = r.m.audio;
+    if (!r.m.useSound || !a || r.t1 <= offset) continue;
+    const from = Math.max(r.t0, offset), pos = from - r.t0, len = Math.min(a.duration, r.m.dur);
+    let at = pos;
+    const s = ctx.createBufferSource(); s.buffer = a;
+    if (r.m.endMode === 'loop') { s.loop = true; s.loopStart = 0; s.loopEnd = len; at = pos % len; }
+    else if (pos >= a.duration) continue;
+    s.connect(out); s.start(when + (from - offset), at); s.stop(when + (r.t1 - offset)); list.push(s);
+  }
 }
 function stopAudio() { nodes.forEach(n => { try { n.stop(); } catch (e) {} }); nodes = []; }
 function nowT() {
@@ -583,8 +688,9 @@ function setIcon() {
 function play() {
   if (busy || !TL.total) return;
   if (playT >= TL.total - 0.05) playT = 0;
-  const ctx = voice || music ? getCtx() : null;
+  const ctx = voice || music || hasClipSound() ? getCtx() : null;
   stopAudio();
+  syncClips(playT, true);
   if (ctx) { const g = scheduleAudio(ctx, ctx.destination, playT, TL.total); nodes = g.nodes; clock = { a: ctx, t0: g.when, off: playT, p0: performance.now() }; }
   else clock = { t0: performance.now(), off: playT };
   playing = true; setIcon(); requestAnimationFrame(loop);
@@ -593,9 +699,9 @@ function loop() {
   if (!playing) return;
   const t = nowT();
   if (t >= TL.total) { stopPlay(); show(TL.total); return; }
-  show(t); requestAnimationFrame(loop);
+  syncClips(t, true); show(t); requestAnimationFrame(loop);
 }
-function stopPlay() { if (playing) playT = nowT(); playing = false; clock = null; stopAudio(); setIcon(); }
+function stopPlay() { if (playing) playT = nowT(); playing = false; clock = null; stopAudio(); pauseClips(); setIcon(); }
 
 /* ---------- panels ---------- */
 function renderChips() {
@@ -617,7 +723,7 @@ function renderChips() {
 function renderScenes() {
   const ol = $('#scenes'), n = TL.scenes.length, th = FORMATS[S.format].thumb;
   $('#sceneMeta').textContent = n ? n + (n === 1 ? ' scene · ' : ' scenes · ') + fmtT(TL.total) : '';
-  $('#bPhotosX').hidden = !imgs.some(Boolean);
+  $('#bPhotosX').hidden = !media.some(Boolean);
   $('#bAuto').hidden = !durOv.some(v => v != null) && !sync;
   $('#play').disabled = busy || !n; $('#go').disabled = busy || aiBusy || !n;
   $('#sampleNote').hidden = S.script !== SAMPLE;
@@ -630,10 +736,16 @@ function renderScenes() {
     '<div><p class="stext"><span class="kind">' + (s.kind === 'title' ? 'Title' : i + 1) + '</span>' + esc(s.text) + '</p><div class="smeta">' +
     '<span class="dur">' + s.dur.toFixed(1) + 's</span>' +
     (sync ? '<span class="tag">Synced to voice</span>' : '<button type="button" class="btn sq" data-act="minus" aria-label="Shorten scene ' + (i + 1) + '">−</button><button type="button" class="btn sq" data-act="plus" aria-label="Lengthen scene ' + (i + 1) + '">+</button>') +
-    '<button type="button" class="btn" data-act="photo">' + (imgs[i] ? 'Change photo' : 'Photo') + '</button>' +
-    (imgs[i] ? '<button type="button" class="btn sq" data-act="unphoto" aria-label="Remove photo from scene ' + (i + 1) + '">×</button>' : '') +
-    '</div></div></li>').join('');
+    '<button type="button" class="btn" data-act="photo">' + (media[i] ? 'Change' : 'Photo or clip') + '</button>' +
+    (media[i] ? '<button type="button" class="btn sq" data-act="unphoto" aria-label="Remove ' + (media[i].kind === 'video' ? 'clip' : 'photo') + ' from scene ' + (i + 1) + '">×</button>' : '') +
+    '</div>' + clipRow(media[i]) + '</div></li>').join('');
   scheduleThumbs();
+}
+function clipRow(m) {
+  if (!m || m.kind !== 'video') return '';
+  return '<div class="smeta"><span class="tag">Clip ' + m.dur.toFixed(1) + 's</span>' +
+    '<button type="button" class="btn" data-act="endmode" title="What happens when the clip is shorter than the scene">' + (m.endMode === 'hold' ? 'Holds last frame' : 'Loops') + '</button>' +
+    '<button type="button" class="btn" data-act="sound" aria-pressed="' + (!!m.useSound) + '"' + (m.noAudio ? ' disabled' : '') + '>' + (m.noAudio ? 'No clip sound' : m.useSound ? 'Clip sound: on' : 'Clip sound: off') + '</button></div>';
 }
 let thumbTimer = 0;
 function scheduleThumbs() { clearTimeout(thumbTimer); thumbTimer = setTimeout(drawThumbs, 120); }
@@ -668,6 +780,66 @@ function refresh() {
 function changed() { renderChips(); sizePreview(); refresh(); }
 
 /* ---------- media ---------- */
+const PHOTO_NOTE = 'Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. A clip loops if it’s shorter than its scene. Tap a scene to preview it.';
+function renderPhotoNote() { $('#photoNote').textContent = PHOTO_NOTE; }
+const isVideoFile = f => /^video\//.test(f.type) || /\.(mp4|m4v|mov|webm|mkv|3gp)$/i.test(f.name || '');
+function waitEvent(el, ev, ms) {
+  return new Promise((res, rej) => {
+    const on = () => { clearTimeout(tm); el.removeEventListener(ev, on); res(); };
+    const tm = setTimeout(() => { el.removeEventListener(ev, on); rej(new Error(ev + ' timeout')); }, ms);
+    el.addEventListener(ev, on);
+  });
+}
+function whenReady(el, ms) {
+  if (el.readyState >= 2) return Promise.resolve();
+  return new Promise(res => {
+    const done = () => { clearTimeout(tm); el.removeEventListener('loadeddata', done); el.removeEventListener('canplay', done); res(); };
+    const tm = setTimeout(done, ms);
+    el.addEventListener('loadeddata', done); el.addEventListener('canplay', done);
+  });
+}
+async function seekTo(el, t) {
+  if (Math.abs(el.currentTime - t) < 0.01 && el.readyState >= 2) return;
+  const p = waitEvent(el, 'seeked', 8000); el.currentTime = t; await p.catch(() => {});
+}
+async function loadClip(file) {
+  const url = URL.createObjectURL(file), el = document.createElement('video');
+  el.muted = true; el.defaultMuted = true; el.playsInline = true; el.preload = 'auto';
+  el.setAttribute('muted', ''); el.setAttribute('playsinline', '');
+  clipHost.appendChild(el);
+  try {
+    const meta = waitEvent(el, 'loadedmetadata', 20000);
+    el.src = url;
+    await meta;
+    if (!(el.duration > 0) || !isFinite(el.duration)) throw new Error('This clip has no length');
+    if (el.readyState < 2) { // iPhones only load a clip's pictures once it has started playing
+      const ready = whenReady(el, 8000);
+      try { await el.play(); el.pause(); } catch (e) {}
+      await ready;
+    }
+    await seekTo(el, Math.min(0.6, el.duration / 2));
+    const k = Math.min(1, 480 / Math.max(el.videoWidth || 1, el.videoHeight || 1)), poster = document.createElement('canvas');
+    poster.width = Math.max(2, Math.round((el.videoWidth || 2) * k)); poster.height = Math.max(2, Math.round((el.videoHeight || 2) * k));
+    try { poster.getContext('2d').drawImage(el, 0, 0, poster.width, poster.height); } catch (e) {}
+    await seekTo(el, 0);
+    el.loop = true;
+    el.addEventListener('seeked', () => { if (!playing && !busy) drawFrame(pctx, cv.width, cv.height, playT); });
+    return { kind: 'video', file, url, el, dur: el.duration, poster, useSound: false, endMode: 'loop', name: file.name || 'clip', audio: null, noAudio: false };
+  } catch (e) { el.remove(); URL.revokeObjectURL(url); throw e; }
+}
+async function loadMedia(file) { return isVideoFile(file) ? loadClip(file) : { kind: 'image', img: await loadImage(file), name: file.name || 'photo' }; }
+function dropUnused(old) {
+  const keep = new Set(media.filter(Boolean));
+  for (const m of new Set(old.filter(Boolean))) {
+    if (keep.has(m) || m.kind !== 'video') continue;
+    try { m.el.pause(); m.el.removeAttribute('src'); m.el.load(); } catch (e) {}
+    m.el.remove(); URL.revokeObjectURL(m.url); m.audio = null;
+  }
+}
+async function ensureClipAudio(m) {
+  if (m.audio || m.noAudio) return;
+  try { m.audio = await decodeFile(m.file); } catch (e) { m.noAudio = true; }
+}
 async function loadImage(file) {
   let im;
   try { im = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
@@ -690,7 +862,7 @@ async function decodeFile(file) {
   });
 }
 async function mixAudio(total) {
-  if (!voice && !music) return null;
+  if (!voice && !music && !hasClipSound()) return null;
   const O = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   if (!O) return null;
   const sr = 48000, oc = new O(2, Math.max(1, Math.ceil(total * sr)), sr);
@@ -1005,23 +1177,60 @@ async function exportFast(W, H, audio, job) {
   if (audio) { as = new M.AudioBufferSource({ codec: 'aac', quality: q(160000) }); out.addAudioTrack(as); }
   await out.start();
   if (as) { jobUI('Encoding the sound…', 0, ''); await as.add(audio); as.close(); }
-  const n = Math.max(1, Math.round(TL.total * FPS)), t0 = performance.now();
-  for (let i = 0; i < n; i++) {
-    if (job.cancel) { await out.cancel().catch(() => {}); throw new Error('cancelled'); }
-    drawFrame(g, W, H, i / FPS);
-    await vs.add(i / FPS, 1 / FPS);
-    if (i % 5 === 0) {
-      prog(i / n, t0, 'Rendering');
-      pctx.drawImage(c, 0, 0, cv.width, cv.height);
-      await (i % 15 === 0 && !document.hidden ? frame() : tick());
+  const n = Math.max(1, Math.round(TL.total * FPS));
+  const feeds = await openClipFeeds(M, W, H, n, job);
+  const t0 = performance.now();
+  try {
+    for (let i = 0; i < n; i++) {
+      if (job.cancel) { await out.cancel().catch(() => {}); throw new Error('cancelled'); }
+      for (const v of visibleClips(i / FPS)) {
+        const f = feeds.get(v.m), r = await f.it.next();
+        if (r.value) v.m.exportFrame = r.value.canvas;
+      }
+      drawFrame(g, W, H, i / FPS, { mode: 'export' });
+      await vs.add(i / FPS, 1 / FPS);
+      if (i % 5 === 0) {
+        prog(i / n, t0, 'Rendering');
+        pctx.drawImage(c, 0, 0, cv.width, cv.height);
+        await (i % 15 === 0 && !document.hidden ? frame() : tick());
+      }
     }
-  }
+  } finally { await closeClipFeeds(feeds); }
   vs.close();
   jobUI('Finishing the file…', 1, '');
   await out.finalize();
   const buf = out.target.buffer;
   c.width = c.height = 1;
   return { blob: new Blob([buf], { type: 'video/mp4' }), ext: 'mp4', W, H, live: false };
+}
+// Clip frames for the MP4 export, decoded exactly at the times each frame needs
+async function openClipFeeds(M, W, H, n, job) {
+  const feeds = new Map(), used = Array.from(new Set(TL.scenes.map(sc => sc.media).filter(m => m && m.kind === 'video')));
+  if (!used.length) return feeds;
+  jobUI('Reading your clips…', 0, '');
+  const seqs = new Map(used.map(m => [m, []]));
+  for (let i = 0; i < n; i++) for (const v of visibleClips(i / FPS)) seqs.get(v.m).push(v.ct);
+  try {
+    for (const m of used) {
+      if (job.cancel) throw new Error('cancelled');
+      const input = new M.Input({ source: new M.BlobSource(m.file), formats: M.ALL_FORMATS });
+      feeds.set(m, { input, it: null });
+      const track = await input.getPrimaryVideoTrack();
+      if (!track || !(await track.canDecode())) throw new Error('This browser can’t read the clip ' + m.name + ' for a fast export');
+      const first = await track.getFirstTimestamp();
+      const sink = new M.CanvasSink(track, { width: W, height: H, fit: 'cover', poolSize: 2 });
+      feeds.get(m).it = sink.canvasesAtTimestamps(seqs.get(m).map(x => x + first));
+    }
+  } catch (e) { await closeClipFeeds(feeds); throw e; }
+  return feeds;
+}
+async function closeClipFeeds(feeds) {
+  for (const [m, f] of feeds) {
+    m.exportFrame = null;
+    try { if (f.it) await f.it.return(); } catch (e) {}
+    try { if (f.input && f.input.dispose) f.input.dispose(); } catch (e) {}
+  }
+  feeds.clear();
 }
 function pickMime(withAudio) {
   const list = withAudio
@@ -1033,6 +1242,8 @@ function pickMime(withAudio) {
 }
 async function exportLive(W, H, audio, live, job) {
   cv.width = W; cv.height = H;
+  syncClips(0, false);
+  await sleep(allClips().length ? 400 : 0);
   drawFrame(pctx, W, H, 0);
   const stream = cv.captureStream(FPS);
   let dest = null, src = null, failed = null;
@@ -1063,6 +1274,7 @@ async function exportLive(W, H, audio, live, job) {
         if (dest && !moved && live.state !== 'running' && performance.now() - p0 > 800) { moved = true; const base = clk(), s1 = performance.now(); clk = () => base + (performance.now() - s1) / 1000; }
         const t = clk();
         if (t >= TL.total) { drawFrame(pctx, W, H, TL.total); return resolve(); }
+        syncClips(t, true);
         drawFrame(pctx, W, H, t); prog(t / TL.total, p0, 'Recording');
         requestAnimationFrame(step);
       };
@@ -1072,6 +1284,7 @@ async function exportLive(W, H, audio, live, job) {
   } finally {
     try { if (rec.state !== 'inactive') rec.stop(); } catch (e) {}
     try { if (src) src.stop(); } catch (e) {}
+    pauseClips();
   }
   await Promise.race([stopped, sleep(4000)]);
   stream.getTracks().forEach(t => t.stop());
@@ -1101,7 +1314,8 @@ function done(res) {
 async function startExport() {
   if (busy || !TL.total) return;
   stopPlay();
-  const live = voice || music ? getCtx() : null;
+  unlockClips();
+  const live = voice || music || hasClipSound() ? getCtx() : null;
   const job = JOB = { cancel: false, out: null }, q = dims(S.quality), W = q.w, H = q.h;
   setBusy(true);
   $('#result').hidden = true;
@@ -1161,28 +1375,40 @@ $('#scenes').addEventListener('click', e => {
   if (act === 'seek') { stopPlay(); show(sc.start + Math.min(sc.dur * 0.6, 1.2)); }
   else if (act === 'minus' || act === 'plus') { durOv[i] = clamp(Math.round((sc.dur + (act === 'plus' ? 0.5 : -0.5)) * 2) / 2, 0.5, 60); playT = sc.start; refresh(); }
   else if (act === 'photo') { pendingImg = i; $('#fPhoto').click(); }
-  else if (act === 'unphoto') { imgs[i] = null; refresh(); }
+  else if (act === 'unphoto') { const old = media.slice(); media[i] = null; dropUnused(old); refresh(); }
+  else if (act === 'endmode' && media[i]) { const m = media[i]; m.endMode = m.endMode === 'hold' ? 'loop' : 'hold'; m.el.loop = m.endMode === 'loop'; refresh(); }
+  else if (act === 'sound' && media[i]) {
+    const m = media[i];
+    if (m.useSound) { m.useSound = false; refresh(); return; }
+    b.disabled = true; b.textContent = 'Reading sound…'; getCtx();
+    ensureClipAudio(m).then(() => { m.useSound = !!m.audio; refresh(); if (m.noAudio) $('#photoNote').textContent = 'That clip has no sound this browser can read.'; });
+  }
 });
 $('#bPhotos').addEventListener('click', () => $('#fPhotos').click());
-$('#bPhotosX').addEventListener('click', () => { imgs = []; refresh(); });
+$('#bPhotosX').addEventListener('click', () => { const old = media.slice(); media = []; dropUnused(old); refresh(); });
 $('#bAuto').addEventListener('click', () => { durOv = []; sync = null; refresh(); });
 $('#fPhotos').addEventListener('change', async e => {
   const files = Array.from(e.target.files || []).slice(0, 40); e.target.value = '';
   if (!files.length) return;
   const note = $('#photoNote'), was = note.textContent;
-  note.textContent = 'Opening ' + files.length + (files.length === 1 ? ' photo…' : ' photos…');
+  note.textContent = 'Opening ' + files.length + (files.length === 1 ? ' file…' : ' files…');
   const got = [];
-  for (const f of files) { try { got.push(await loadImage(f)); } catch (err) { console.warn(err); } }
-  note.textContent = got.length ? was : 'Those photos couldn’t be opened. Try JPG or PNG.';
+  let failed = 0;
+  for (const f of files) { try { got.push(await loadMedia(f)); } catch (err) { failed++; console.warn(err); } }
+  note.textContent = !got.length ? 'Those files couldn’t be opened. Try JPG or PNG photos, or MP4 clips.' : failed ? failed + ' file' + (failed === 1 ? '' : 's') + ' couldn’t be opened. The rest were added.' : was;
   if (!got.length) return;
-  imgs = [];
-  for (let i = 0; i < Math.max(1, TL.scenes.length); i++) imgs[i] = got[i % got.length];
+  const old = media.slice();
+  media = [];
+  for (let i = 0; i < Math.max(1, TL.scenes.length); i++) media[i] = got[i % got.length];
+  dropUnused(old);
   refresh();
 });
 $('#fPhoto').addEventListener('change', async e => {
   const f = e.target.files && e.target.files[0]; e.target.value = '';
   if (!f || pendingImg < 0) return;
-  try { imgs[pendingImg] = await loadImage(f); refresh(); } catch (err) { $('#photoNote').textContent = 'That photo couldn’t be opened. Try JPG or PNG.'; }
+  $('#photoNote').textContent = 'Opening ' + (f.name || 'file') + '…';
+  try { const m = await loadMedia(f), old = media.slice(); media[pendingImg] = m; dropUnused(old); renderPhotoNote(); refresh(); }
+  catch (err) { $('#photoNote').textContent = 'That file couldn’t be opened. Try a JPG or PNG photo, or an MP4 clip.'; }
 });
 $('#bVoice').addEventListener('click', () => { getCtx(); $('#fVoice').click(); });
 $('#bMusic').addEventListener('click', () => { getCtx(); $('#fMusic').click(); });
