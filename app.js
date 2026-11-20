@@ -7,6 +7,7 @@ const session = require('express-session');
 const MongoStore = require('connect-mongo');
 const helmet = require('helmet');
 const compression = require('compression');
+const path = require('path');
 const connectDB = require('./server/config/db');
 const { isActiveRoute } = require('./server/helpers/routerHelpers');
 
@@ -21,6 +22,31 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(methodOverride('_method'));
+// Script to Video tool at /video: a static page that makes videos and AI voiceovers
+// in the visitor's browser. Mounted before the blog's helmet() so it gets its own
+// security policy: it needs inline scripts, WebAssembly and blob: media, which the
+// blog's policy blocks. Files that aren't found fall through to the blog as usual.
+app.use('/video',
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"],
+        workerSrc: ["'self'", 'blob:'],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        mediaSrc: ["'self'", 'blob:'],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      },
+    },
+  }),
+  compression({ filter: (req, res) => !req.path.endsWith('.wasm') && compression.filter(req, res) }),
+  express.static(path.join(__dirname, 'public', 'video'))
+);
+
 // Generate a CSP nonce per request so JSON-LD inline scripts are allowed
 app.use((req, res, next) => {
   res.locals.cspNonce = require('crypto').randomBytes(16).toString('base64');
