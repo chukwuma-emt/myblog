@@ -35,7 +35,7 @@ p{margin:0}
 .top{max-width:1240px;margin:0 auto;padding:20px max(4vw,16px) 16px;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px}
 .top p{color:var(--muted)}
 .app{max-width:1240px;margin:0 auto;padding:0 max(4vw,16px) 28px;display:grid;gap:28px}
-@media(min-width:900px){.app{grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:44px;align-items:start}.stage{position:sticky;top:16px}}
+@media(min-width:900px){.app{grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:44px;align-items:start}.stage{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow-y:auto;overscroll-behavior:contain;padding-bottom:8px}}
 .monitor{background:#0b0b0c;color:#9d9da3;border-radius:18px;padding:10px 12px 12px;box-shadow:0 22px 44px -26px rgba(0,0,0,.65)}
 .mbar{display:flex;align-items:center;gap:8px;font-size:13px;padding:0 4px 9px}
 .mfmt{margin-left:auto;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -92,6 +92,37 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .thumb canvas{display:block;width:var(--tw);height:var(--th)}
 .stext{font-size:15px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .kind{font-size:13px;font-weight:700;color:var(--muted);margin-right:6px}
+.stext em{color:var(--muted);font-style:normal}
+.tl{margin-top:16px}
+.tl.empty .tlops,.tl.empty .tlwrap{display:none}
+.tlbar{display:flex;align-items:center;gap:8px}
+.tlbar svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tlsel{flex:1;min-width:0;font-size:14px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tlwrap{position:relative;margin-top:10px}
+.tlwrap::after{content:'';position:absolute;left:50%;top:-5px;bottom:-5px;width:3px;margin-left:-1.5px;background:var(--rec);border-radius:2px;pointer-events:none;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+.tlstrip{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;border-radius:12px;background:var(--field);border:1px solid var(--line)}
+.tlstrip::-webkit-scrollbar{display:none}
+.tlrow{display:flex;width:max-content;padding:5px 50%}
+.tlb{position:relative;flex:none;height:56px;border:0;padding:0;margin:0;overflow:hidden;background:#222;color:#fff;cursor:pointer;box-shadow:inset -2px 0 0 var(--field);border-radius:0}
+.tlb:first-child{border-radius:8px 0 0 8px}.tlb:last-child{border-radius:0 8px 8px 0}
+.tlb canvas{position:absolute;left:0;top:0;height:56px;width:auto;pointer-events:none}
+.tlb span{position:absolute;left:6px;right:6px;top:5px;font:600 12px/1.25 Archivo,system-ui,sans-serif;text-align:left;text-shadow:0 1px 3px rgba(0,0,0,.9);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+.tlb i{position:absolute;right:5px;bottom:4px;font:600 11px/1 Archivo,system-ui,sans-serif;font-style:normal;background:rgba(0,0,0,.6);padding:2px 4px;border-radius:4px;pointer-events:none}
+.tlb.sel{box-shadow:inset 0 0 0 3px var(--rec)}
+.tlops{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.clipbox{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.cbhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:15px}
+.cbhead span{color:var(--muted);font-size:14px}
+.trim{margin-top:12px}
+.tlab{display:flex;justify-content:space-between;font-weight:700;font-size:14px;margin-bottom:4px}
+.tlab output{font-weight:600;color:var(--muted)}
+.trow{display:flex;align-items:center;gap:8px}
+.trow input{flex:1;min-width:0}
+.btns.tight{margin-top:0}
+.cvol{display:flex;align-items:center;gap:8px;flex:1;min-width:160px}
+.cvol input{flex:1;min-width:0}
+.cvol output{min-width:44px;font-weight:600;font-size:14px;color:var(--muted)}
+.ver{margin-top:6px;font-size:13px;color:var(--muted)}
 .smeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
 .smeta [aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .dur{font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;min-width:3.4em}
@@ -131,6 +162,23 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
    <input type="range" id="seek" min="0" max="1000" value="0" aria-label="Position in video">
    <span class="clock" id="clock">0:00 / 0:00</span>
   </div>
+  <div class="tl" id="tl">
+   <div class="tlbar">
+    <button class="btn sq" id="bUndo" type="button" aria-label="Undo" title="Undo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H4V2M4.5 7.5A8 8 0 1 1 4 13"/></svg></button>
+    <button class="btn sq" id="bRedo" type="button" aria-label="Redo" title="Redo" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7h5V2M19.5 7.5A8 8 0 1 0 20 13"/></svg></button>
+    <span class="tlsel" id="tlSel"></span>
+    <button class="btn" id="bAddClip" type="button">+ Add clip</button>
+   </div>
+   <div class="tlwrap"><div class="tlstrip" id="tlStrip" aria-label="Timeline. Scroll it to move through the video."><div class="tlrow" id="tlRow"></div></div></div>
+   <div class="tlops" id="tlOps">
+    <button class="btn" type="button" data-op="split">Split</button>
+    <button class="btn" type="button" data-op="dup">Duplicate</button>
+    <button class="btn sq" type="button" data-op="left" aria-label="Move scene earlier" title="Move earlier">◀</button>
+    <button class="btn sq" type="button" data-op="right" aria-label="Move scene later" title="Move later">▶</button>
+    <button class="btn" type="button" data-op="del">Delete</button>
+   </div>
+   <div class="clipbox" id="clipBox" hidden></div>
+  </div>
   <div class="exportbar">
    <div class="seg" role="radiogroup" aria-label="Export quality" data-key="quality"></div>
    <button class="primary" id="go" type="button">Export video</button>
@@ -144,7 +192,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   <div class="result" id="result" hidden>
    <video id="outVid" controls playsinline preload="metadata"></video>
    <p class="hint" id="outInfo"></p>
-   <button class="primary" id="save" type="button">Save video</button>
+   <div class="btns"><button class="primary" id="share" type="button" hidden>Save to phone</button><button class="primary" id="save" type="button">Save video</button></div>
    <p class="hint" id="saveNote"></p>
   </div>
  </section>
@@ -153,8 +201,8 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   <div class="block">
    <h2><label for="script">Script</label></h2>
    <textarea id="script" spellcheck="true" autocapitalize="sentences"></textarea>
-   <p class="hint">A blank line starts a new scene. A line that starts with # becomes a title card. Anything in [square brackets] is left out of the video.</p>
-   <div class="btns"><p class="hint" id="sampleNote">This is a sample script. Replace it with yours.</p><button class="btn" id="bClear" type="button">Clear</button><button class="btn" id="bSample" type="button">Use sample</button></div>
+   <p class="hint">A blank line starts a new scene. A line that starts with # becomes a title card. Anything in [square brackets] is left out of the video, except a line with just [clip], which makes a scene with no words for a clip on its own.</p>
+   <div class="btns"><p class="hint" id="sampleNote">This is a sample script. Replace it with yours.</p><button class="btn" id="bClear" type="button">Clear</button><button class="btn" id="bNew" type="button">Start over</button><button class="btn" id="bSample" type="button">Use sample</button></div>
   </div>
 
   <div class="block">
@@ -198,7 +246,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   </div>
  </section>
 </main>
-<footer class="foot">Everything is made on your device: your script, photos and sound stay in this page until you save the video. Encoding uses <a href="https://github.com/Vanilagy/mediabunny">Mediabunny</a> (MPL-2.0) and, where the browser has no AAC encoder of its own, <a href="https://ffmpeg.org/">FFmpeg</a>’s AAC encoder (LGPL-2.1). AI voices use <a href="https://github.com/hexgrad/kokoro">Kokoro-82M</a> (Apache-2.0) with <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> (MIT) and <a href="https://github.com/espeak-ng/espeak-ng">eSpeak NG</a> pronunciation (GPL-3.0). These load only when you use them.</footer>
+<footer class="foot">Everything is made on your phone. Your script, clips, photos and sound are kept in this browser and never uploaded anywhere. Encoding uses <a href="https://github.com/Vanilagy/mediabunny">Mediabunny</a> (MPL-2.0) and, where the browser has no AAC encoder of its own, <a href="https://ffmpeg.org/">FFmpeg</a>’s AAC encoder (LGPL-2.1). AI voices use <a href="https://github.com/hexgrad/kokoro">Kokoro-82M</a> (Apache-2.0) with <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> (MIT) and <a href="https://github.com/espeak-ng/espeak-ng">eSpeak NG</a> pronunciation (GPL-3.0). These load only when you use them.<p class="ver" id="ver"></p></footer>
 
 <div class="dlg" id="syncDlg" hidden>
  <div class="card" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
@@ -210,9 +258,10 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 </div>
 <input class="vh" type="file" id="fPhotos" accept="image/*,video/*" multiple tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fPhoto" accept="image/*,video/*" tabindex="-1" aria-hidden="true">
+<input class="vh" type="file" id="fAdd" accept="image/*,video/*" multiple tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 
-<script src="stv.js"></script>
+<script src="stv.js?v=2.0"></script>
 </body>
 </html>
