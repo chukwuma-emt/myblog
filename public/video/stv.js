@@ -62,9 +62,10 @@ const SAMPLE = [
 ].join('\n');
 const DEF = { script: SAMPLE, look: 'captions', format: '9:16', theme: 'night', font: 'montserrat', upper: true, pos: 'middle', hl: 'box', wpm: 160, handle: '', progress: true, quality: 1080, musicVol: 0.3, aiVoice: 'af_heart', aiSpeed: 1, capY: null, duck: true, voiceVol: 1, trans: 'fade' };
 
-function load() {
+function load(given) {
   let s = {};
-  try { s = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { s = {}; }
+  if (given && typeof given === 'object') s = given;
+  else try { s = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { s = {}; }
   const o = Object.assign({}, DEF, s);
   if (!LOOKS[o.look]) o.look = DEF.look;
   if (!FORMATS[o.format]) o.format = DEF.format;
@@ -90,7 +91,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null, trans = [];
-const VERSION = '2.3';
+const VERSION = '2.4';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 const transOf = i => (i > 0 && (trans[i] || S.trans)) || 'cut';
 const transDur = tr => tr === 'cut' ? 0 : tr === 'fade' ? TR : 0.5;
@@ -1721,7 +1722,7 @@ async function exportLive(W, H, audio, live, job) {
   return { blob: new Blob(parts, { type }), ext: /mp4/.test(type) ? 'mp4' : 'webm', W, H, live: true };
 }
 function fileName(ext) {
-  const first = (TL.scenes[0] && TL.scenes[0].text) || 'video';
+  const ent = IX && IX.list.find(x => x.id === curId), first = (ent && ent.named && ent.name) || (TL.scenes.find(sc => sc.text) || {}).text || 'video';
   const slug = first.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48).replace(/-+$/, '') || 'video';
   return slug + '.' + ext;
 }
@@ -1850,18 +1851,73 @@ async function saveProject() {
   if (music && music.file) { mu = { fid: fileId(music.file), name: music.name }; files.set(mu.fid, music.file); }
   if (!storedIds) storedIds = new Set((await idb('files', 'readonly', st => st.getAllKeys())) || []);
   for (const [fid, f] of files) if (!storedIds.has(fid)) { await idb('files', 'readwrite', st => st.put(f, fid)); storedIds.add(fid); }
-  await idb('state', 'readwrite', st => st.put({ v: 1, script: S.script, objs, scenes, durOv: durOv.slice(0, scenes.length), sync, voice: v, music: mu, sel, playT, ovl, trans, saved: Date.now() }, 'project'));
-  const extra = Array.from(storedIds).filter(id => !files.has(id));
+  const look = Object.assign({}, S); delete look.quality;
+  await idb('state', 'readwrite', st => st.put({ v: 2, script: S.script, look, objs, scenes, durOv: durOv.slice(0, scenes.length), sync, voice: v, music: mu, sel, playT, ovl, trans, saved: Date.now() }, 'p:' + curId));
+  const ix = await getIndex(), e = ix.list.find(x => x.id === curId);
+  if (e) Object.assign(e, { name: e.named ? e.name : autoName(), updated: Date.now(), dur: TL.total, scenes: TL.scenes.length, thumb: projThumb(), files: Array.from(files.keys()) });
+  await putIndex(ix);
+  // a file stays while any project still uses it
+  const used = new Set(); ix.list.forEach(x => (x.files || []).forEach(f => used.add(f)));
+  const extra = Array.from(storedIds).filter(id => !used.has(id));
   if (extra.length) { await idb('files', 'readwrite', st => { extra.forEach(id => st.delete(id)); }); extra.forEach(id => storedIds.delete(id)); }
+  if (!$('#projDlg').hidden) renderProjects();
+  setProjName();
   if (!saveProject.asked && navigator.storage && navigator.storage.persist) { saveProject.asked = true; navigator.storage.persist().catch(() => {}); }
 }
-async function restoreProject() {
+// ---- the list of projects
+let curId = null, IX = null;
+async function getIndex() {
+  if (IX) return IX;
+  let ix = null;
+  try { ix = await idb('state', 'readonly', st => st.get('index')); } catch (e) { ix = null; }
+  if (!ix || !Array.isArray(ix.list)) {
+    // first time with several projects: the single saved project (if any) becomes the first one
+    const id = newId(), now = Date.now();
+    ix = { v: 2, current: id, list: [{ id, name: '', named: false, created: now, updated: now, dur: 0, scenes: 0, thumb: '', files: [] }] };
+    try {
+      const old = await idb('state', 'readonly', st => st.get('project'));
+      if (old) {
+        await idb('state', 'readwrite', st => st.put(old, 'p:' + id));
+        await idb('state', 'readwrite', st => st.delete('project'));
+        ix.list[0].files = (old.objs || []).map(o => o.fid).concat(old.voice ? [old.voice.fid] : [], old.music ? [old.music.fid] : []);
+        ix.list[0].updated = old.saved || now;
+      }
+    } catch (e) {}
+    await putIndex(ix);
+  }
+  IX = ix;
+  return ix;
+}
+async function putIndex(ix) { IX = ix; ix.current = curId || ix.current; try { await idb('state', 'readwrite', st => st.put(ix, 'index')); } catch (e) {} }
+function autoName() {
+  const first = TL.scenes.find(sc => sc.text);
+  const t = first ? first.text.replace(/\s+/g, ' ').trim() : '';
+  return t ? (t.length > 42 ? t.slice(0, 40).replace(/\s+\S*$/, '') + '…' : t) : (media.some(Boolean) ? 'Video with clips' : 'Untitled video');
+}
+function projThumb() {
+  try {
+    const f = FORMATS[S.format], k = 96 / Math.max(f.w, f.h), c = document.createElement('canvas');
+    c.width = Math.round(f.w * k * 2); c.height = Math.round(f.h * k * 2);
+    if (TL.scenes.length) { const sc = TL.scenes[0]; drawFrame(c.getContext('2d'), c.width, c.height, sc.start + Math.min(sc.talk || sc.dur, sc.dur) * 0.6, { thumb: true }); }
+    else { const g = c.getContext('2d'); g.fillStyle = '#222'; g.fillRect(0, 0, c.width, c.height); }
+    return c.toDataURL('image/jpeg', 0.7);
+  } catch (e) { return ''; }
+}
+function setProjName() { const e = IX && IX.list.find(x => x.id === curId); $('#projName').textContent = e && e.named ? e.name : autoName(); }
+async function flushSave() { clearTimeout(saveTimer); if (curId && !restoring) { try { await saveProject(); } catch (e) { console.warn(e); } } }
+function teardown() {
+  stopPlay(); selText = null; selCap = false;
+  for (const m of Array.from(LIVE)) disposeMedia(m);
+  LIVE.clear(); UNDO.length = 0; REDO.length = 0;
+  media = []; durOv = []; sync = null; voice = null; music = null; ovl = []; trans = []; sel = 0; playT = 0;
+}
+async function restoreProject(id) {
   let pj = null;
-  try { pj = await idb('state', 'readonly', st => st.get('project')); } catch (e) { return; }
-  if (!pj || (!pj.objs.length && !pj.voice && !pj.music && !(pj.ovl || []).some(a => a && a.length))) return;
+  try { pj = await idb('state', 'readonly', st => st.get('p:' + id)); } catch (e) { return; }
+  if (!pj) return;
   restoring = true;
   const note = $('#photoNote');
-  note.textContent = 'Opening your saved project…';
+  note.textContent = 'Opening your project…';
   try {
     const getFile = async fid => { const f = await idb('files', 'readonly', st => st.get(fid)); if (f) fileIds.set(f, fid); return f || null; };
     const objs = [];
@@ -1878,7 +1934,9 @@ async function restoreProject() {
       } catch (e) { console.warn(e); m = null; }
       objs.push(m);
     }
-    if (typeof pj.script === 'string') { S.script = pj.script; $('#script').value = pj.script; }
+    if (pj.look && typeof pj.look === 'object') { const q = S.quality; S = load.call(null, pj.look); S.quality = q; }
+    if (typeof pj.script === 'string') { S.script = pj.script; }
+    $('#script').value = S.script; $('#handle').value = S.handle;
     media = pj.scenes.map(k => k >= 0 ? objs[k] || null : null);
     durOv = Array.isArray(pj.durOv) ? pj.durOv.map(x => x == null ? undefined : +x) : [];
     if (pj.voice) {
@@ -1891,18 +1949,87 @@ async function restoreProject() {
     trans = Array.isArray(pj.trans) ? pj.trans.map(t => OPTS.trans.some(x => x[0] === t) ? t : null) : [];
     ovl = Array.isArray(pj.ovl) ? pj.ovl.map(a => Array.isArray(a) ? a.filter(o => o && typeof o.text === 'string') : []) : [];
     sel = pj.sel || 0; playT = +pj.playT || 0;
-    note.textContent = 'Your saved project is back. Tap Start over in the Script box for a fresh one.';
+    note.textContent = (pj.objs || []).length || pj.voice ? 'Your project is back. Find your other videos in My projects at the top.' : PHOTO_NOTE;
   } finally { restoring = false; }
-  refresh();
+  renderChips(); sizePreview(); refresh(); setProjName();
 }
-async function startOver() {
-  if (busy || aiBusy) return;
-  remember();
-  S.script = ''; $('#script').value = '';
-  media = []; durOv = []; sync = null; voice = null; music = null; ovl = []; trans = []; selText = null; sel = 0; playT = 0;
-  refresh();
-  renderPhotoNote();
+async function newProject() {
+  if (busy || aiBusy || restoring) return;
+  await flushSave();
+  teardown();
+  const id = newId(), now = Date.now(), ix = await getIndex();
+  ix.list.unshift({ id, name: '', named: false, created: now, updated: now, dur: 0, scenes: 0, thumb: '', files: [] });
+  curId = id; await putIndex(ix);
+  S.script = ''; S.capY = null; $('#script').value = '';
+  refresh(); renderPhotoNote(); setProjName();
+  $('#photoNote').textContent = 'New project started. Your other videos are kept in My projects at the top.';
+  closeProjects();
 }
+async function openProject(id) {
+  if (busy || aiBusy || restoring) return;
+  if (id === curId) return closeProjects();
+  await flushSave();
+  teardown();
+  curId = id; await putIndex(await getIndex());
+  closeProjects();
+  await restoreProject(id);
+  undoUI();
+}
+async function copyProject(id) {
+  if (id === curId) await flushSave();
+  const ix = await getIndex(), e = ix.list.find(x => x.id === id), pj = await idb('state', 'readonly', st => st.get('p:' + id));
+  if (!e || !pj) return;
+  const nid = newId(), now = Date.now();
+  await idb('state', 'readwrite', st => st.put(pj, 'p:' + nid));
+  ix.list.splice(ix.list.indexOf(e) + 1, 0, Object.assign({}, e, { id: nid, name: 'Copy of ' + e.name, named: true, created: now, updated: now }));
+  await putIndex(ix); renderProjects();
+}
+async function deleteProject(id) {
+  const ix = await getIndex(), e = ix.list.find(x => x.id === id);
+  if (!e) return;
+  ix.list.splice(ix.list.indexOf(e), 1);
+  await idb('state', 'readwrite', st => st.delete('p:' + id));
+  if (id === curId) {
+    teardown();
+    if (!ix.list.length) { await putIndex(ix); curId = null; await newProject(); return; }
+    curId = ix.list.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0))[0].id; await putIndex(ix);
+    await restoreProject(curId);
+  } else await putIndex(ix);
+  await flushSave(); renderProjects();
+}
+async function renameProject(id, name) {
+  const ix = await getIndex(), e = ix.list.find(x => x.id === id);
+  if (!e) return;
+  name = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  e.named = !!name; e.name = name || (id === curId ? autoName() : e.name);
+  await putIndex(ix); renderProjects();
+  if (id === curId) $('#projName').textContent = e.name;
+}
+// ---- the My projects window
+let renaming = null, delArmed = null;
+function when(t) {
+  const d = new Date(t), now = new Date(), day = 86400000;
+  const hm = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return 'today ' + hm;
+  if (new Date(now - day).toDateString() === d.toDateString()) return 'yesterday ' + hm;
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' }) + ' ' + hm;
+}
+async function renderProjects() {
+  const ix = await getIndex(), ol = $('#projList');
+  ol.innerHTML = ix.list.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0)).map(e => {
+    const cur = e.id === curId, ren = renaming === e.id;
+    return '<li class="proj' + (cur ? ' cur' : '') + '" data-id="' + e.id + '">' +
+      '<button type="button" class="pthumb" data-pact="open" aria-label="Open ' + esc(e.name || 'project') + '">' + (e.thumb ? '<img src="' + e.thumb + '" alt="">' : '') + '</button>' +
+      '<div class="pinfo">' + (ren ? '<input class="pren" type="text" maxlength="60" value="' + esc(e.name || '') + '" aria-label="Project name">' : '<p class="pname">' + esc(e.name || 'Untitled video') + '</p>') +
+      '<p class="pmeta">' + fmtT(e.dur || 0) + ' · ' + (e.scenes || 0) + (e.scenes === 1 ? ' scene' : ' scenes') + ' · ' + when(e.updated || e.created) + '</p>' +
+      '<div class="pbtns">' + (ren ? '<button type="button" class="btn" data-pact="save">Save name</button>' : (cur ? '<span class="tag">Open now</span>' : '<button type="button" class="btn" data-pact="open">Open</button>') + '<button type="button" class="btn" data-pact="ren">Rename</button>') +
+      '<button type="button" class="btn" data-pact="copy">Copy</button><button type="button" class="btn" data-pact="del">' + (delArmed === e.id ? 'Tap again to delete' : 'Delete') + '</button></div></div></li>';
+  }).join('');
+  const inp = ol.querySelector('.pren');
+  if (inp) { inp.focus(); inp.select(); }
+}
+async function openProjects() { if (busy || REC) return; stopPlay(); renaming = null; delArmed = null; await flushSave(); await renderProjects(); $('#projDlg').hidden = false; }
+function closeProjects() { $('#projDlg').hidden = true; renaming = null; delArmed = null; }
 
 /* ---------- timeline ---------- */
 // The strip scrolls under a fixed playhead in the middle: scrolling it moves through the video.
@@ -2239,7 +2366,23 @@ $('#save').addEventListener('click', async () => {
 let typing = 0;
 let typedAt = 0;
 $('#script').addEventListener('input', e => { if (Date.now() - typedAt > 2500) remember(); typedAt = Date.now(); clearTimeout(typing); typing = setTimeout(() => { S.script = e.target.value; refresh(); }, 280); });
-$('#bNew').addEventListener('click', startOver);
+$('#bNew').addEventListener('click', newProject);
+$('#bProjects').addEventListener('click', openProjects);
+$('#projClose').addEventListener('click', closeProjects);
+$('#projNew').addEventListener('click', newProject);
+$('#projList').addEventListener('click', e => {
+  const b = e.target.closest('[data-pact]'), li = e.target.closest('.proj');
+  if (!b || !li) return;
+  const id = li.dataset.id, a = b.dataset.pact;
+  if (a !== 'del') delArmed = null;
+  if (a === 'open') openProject(id);
+  else if (a === 'ren') { renaming = id; renderProjects(); }
+  else if (a === 'save') { const v = li.querySelector('.pren').value; renaming = null; renameProject(id, v); }
+  else if (a === 'copy') copyProject(id);
+  else if (a === 'del') { if (delArmed === id) { delArmed = null; deleteProject(id); } else { delArmed = id; renderProjects(); } }
+});
+$('#projList').addEventListener('keydown', e => { if (e.target.classList.contains('pren') && e.key === 'Enter') { e.preventDefault(); const li = e.target.closest('.proj'); renaming = null; renameProject(li.dataset.id, e.target.value); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#projDlg').hidden) closeProjects(); });
 $('#bClear').addEventListener('click', () => { S.script = ''; $('#script').value = ''; refresh(); $('#script').focus(); });
 $('#bSample').addEventListener('click', () => { S.script = SAMPLE; $('#script').value = SAMPLE; playT = 0.9; refresh(); });
 $('#scenes').addEventListener('click', e => {
@@ -2539,7 +2682,14 @@ if (window.top === window && location.protocol.startsWith('http')) {
 $('#script').value = S.script; $('#handle').value = S.handle;
 renderChips(); build(); sizePreview(); renderScenes(); renderAudio(); renderTimeline(); show(Math.min(0.9, TL.total));
 $('#ver').textContent = 'Version ' + VERSION;
-restoreProject();
+(async () => {
+  try {
+    const ix = await getIndex();
+    curId = ix.current && ix.list.some(x => x.id === ix.current) ? ix.current : ix.list[0].id;
+    setProjName();
+    await restoreProject(curId);
+  } catch (e) { console.warn('[script-to-video] projects unavailable', e); }
+})();
 const screenObserver = new ResizeObserver(() => { if (busy) return; sizePreview(); show(playT); });
 screenObserver.observe($('#screen'));
 const redrawAll = () => { if (busy) return; LC.clear(); show(playT); scheduleThumbs(); };
