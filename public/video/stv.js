@@ -84,6 +84,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null;
+const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 let TL = { scenes: [], total: 0 };
 const LC = new Map();
 let IN_CLAUDE = false;
@@ -147,9 +148,10 @@ function autoDur(sc) {
   return Math.max(1.4, d + 0.4);
 }
 function wordTimes(sc) {
-  const lead = sc.kind === 'title' ? 0 : Math.min(0.15, sc.dur * 0.05);
-  const tail = sc.kind === 'title' ? 0 : Math.min(0.5, sc.dur * 0.15);
-  const span = Math.max(0.1, sc.dur - lead - tail);
+  const D = sc.talk || sc.dur;
+  const lead = sc.kind === 'title' ? 0 : Math.min(0.15, D * 0.05);
+  const tail = sc.kind === 'title' ? 0 : Math.min(0.5, D * 0.15);
+  const span = Math.max(0.1, D - lead - tail);
   const wts = sc.words.map(w => 1 + Math.min(w.length, 12) * 0.09 + (ENDP.test(w) ? 0.9 : SOFTP.test(w) ? 0.45 : 0));
   const tot = wts.reduce((a, b) => a + b, 0) || 1;
   let acc = lead;
@@ -179,35 +181,61 @@ function chunksFor(sc) {
 function build() {
   const raw = parse(S.script), n = raw.length;
   if (sync && (!voice || sync.length !== n)) sync = null;
+  const clipAt = i => media[i] && media[i].kind === 'video' ? media[i] : null;
   const sharedAt = i => !!media[i] && (media[i] === media[i - 1] || media[i] === media[i + 1]);
-  let durs = raw.map((s, i) => {
-    if (durOv[i] != null) return durOv[i];
-    const m = media[i];
-    if (m && m.kind === 'video' && !voice && !sharedAt(i)) return clamp(m.dur, 1, 60);
-    return autoDur(s);
-  });
-  const starts = [];
+  let durs, talk;
   if (sync) {
+    // each scene's narration, straight from the voice timing
     const end = Math.max(voice.dur + 0.4, sync[n - 1] + 0.8);
-    sync.forEach(s => starts.push(s));
-    durs = starts.map((s, i) => Math.max(0.3, (i + 1 < n ? starts[i + 1] : end) - s));
+    talk = sync.map((s, i) => Math.max(0.05, (i + 1 < n ? sync[i + 1] : end) - s));
+    durs = talk.slice();
   } else {
+    durs = raw.map((s, i) => {
+      if (durOv[i] != null) return durOv[i];
+      const m = clipAt(i);
+      if (m && !voice && !sharedAt(i) && m.fit !== 'cut') return clamp(m.dur, 1, MAXCLIP);
+      return autoDur(s);
+    });
     if (voice && n) {
       let fixed = 0, flex = 0;
       durs.forEach((d, i) => { if (durOv[i] != null) fixed += d; else flex += d; });
       const k = flex > 0 ? Math.max(0.15, (voice.dur + 0.4 - fixed) / flex) : 1;
       durs = durs.map((d, i) => durOv[i] != null ? d : d * k);
     }
-    let acc = 0;
-    for (const d of durs) { starts.push(acc); acc += d; }
+    talk = durs.slice();
   }
-  const scenes = raw.map((s, i) => Object.assign(s, { start: starts[i], dur: durs[i], media: media[i] || null }));
+  // A whole clip is never cut short: the last scene showing it stretches to fit the rest of the clip.
+  // (Not with a voiceover that hasn't been synced, because then nothing says where its lines can pause.)
+  if (!voice || sync) for (let i = 0; i < n;) {
+    const m = clipAt(i); let j = i;
+    while (m && j + 1 < n && media[j + 1] === m) j++;
+    if (m && m.fit !== 'cut' && (sync || durOv[j] == null)) {
+      let sum = 0; for (let k = i; k <= j; k++) sum += durs[k];
+      const need = Math.min(m.dur, MAXCLIP) - sum;
+      if (need > 0.02) durs[j] += need;
+    }
+    i = j + 1;
+  }
+  const starts = []; let acc = sync ? sync[0] : 0;
+  for (const d of durs) { starts.push(acc); acc += d; }
+  // where each scene's narration plays now that some scenes may be longer than their lines
+  let vo = null;
+  if (sync) {
+    vo = [];
+    [{ at: 0, from: 0, len: sync[0] }].concat(sync.map((x, i) => ({ at: starts[i], from: x, len: talk[i] }))).forEach(q => {
+      if (q.len <= 0) return;
+      const l = vo[vo.length - 1];
+      if (l && Math.abs(l.at + l.len - q.at) < 1e-6 && Math.abs(l.from + l.len - q.from) < 1e-6) l.len += q.len;
+      else vo.push(Object.assign({}, q));
+    });
+  }
+  const scenes = raw.map((s, i) => Object.assign(s, { start: starts[i], dur: durs[i], talk: Math.min(talk[i], durs[i]), media: media[i] || null }));
   scenes.forEach((sc, i) => {
     const p = scenes[i - 1];
     sc.clipOffset = p && sc.media && sc.media.kind === 'video' && p.media === sc.media ? p.clipOffset + p.dur : 0;
     wordTimes(sc); chunksFor(sc);
   });
-  TL = { scenes, total: n ? scenes[n - 1].start + scenes[n - 1].dur : 0 };
+  TL = { scenes, total: n ? scenes[n - 1].start + scenes[n - 1].dur : 0, vo };
 }
 
 /* ---------- drawing ---------- */
@@ -511,6 +539,8 @@ function overlays(ctx, W, H, U, t, th) {
   }
   grain(ctx, W, H, t, th);
 }
+// When a whole clip makes a scene outlast its words, the words fade away and the clip plays on
+const textFade = (sc, lt) => sc.talk < sc.dur - 0.05 ? 1 - clamp((lt - sc.talk - 0.8) / 0.5, 0, 1) : 1;
 function drawFrame(ctx, W, H, t, o) {
   o = o || {};
   const U = Math.min(W, H) / 1080, th = THEMES[S.theme], scs = TL.scenes;
@@ -534,10 +564,11 @@ function drawFrame(ctx, W, H, t, o) {
   } else bg(ctx, W, H, sc, lt, t, th, mode);
   if (prev) {
     const fade = prev.kind === 'title' || sc.kind === 'title' || S.look === 'story' || S.look === 'typewriter';
-    const a = 1 - clamp(lt / 0.2, 0, 1);
+    const a = (1 - clamp(lt / 0.2, 0, 1)) * textFade(prev, prev.dur);
     if (fade && a > 0) drawText(ctx, W, H, U, prev, prev.dur - 1e-3, a, th);
   }
-  drawText(ctx, W, H, U, sc, lt, 1, th);
+  const ta = textFade(sc, lt);
+  if (ta > 0) drawText(ctx, W, H, U, sc, lt, ta, th);
   if (!o.thumb) overlays(ctx, W, H, U, t, th);
   ctx.restore();
 }
@@ -564,9 +595,14 @@ function visibleClips(t) {
   if (!scs.length) return out;
   t = clamp(t, 0, Math.max(0, TL.total - 1e-4));
   const i = sceneAt(t), sc = scs[i], lt = t - sc.start, p = i > 0 && lt < TR ? scs[i - 1] : null;
-  if (p && p.media && p.media.kind === 'video' && p.media !== sc.media) out.push({ m: p.media, x: p.dur + lt + p.clipOffset });
+  // a clip that played right to its end holds its last frame through the crossfade instead of starting over
+  if (p && p.media && p.media.kind === 'video' && p.media !== sc.media) out.push({ m: p.media, x: p.dur + lt + p.clipOffset, hold: Math.abs(p.clipOffset + p.dur - p.media.dur) < 0.05 });
   if (sc.media && sc.media.kind === 'video') out.push({ m: sc.media, x: lt + sc.clipOffset });
-  out.forEach(v => { v.ct = clipTime(v.m, v.x); v.ended = v.m.endMode === 'hold' && v.x >= v.m.dur; });
+  out.forEach(v => {
+    const hold = v.hold || v.m.endMode === 'hold';
+    v.ct = hold ? Math.min(Math.max(0, v.x), Math.max(0, v.m.dur - 0.05)) : clipTime(v.m, v.x);
+    v.ended = hold && v.x >= v.m.dur - 0.05;
+  });
   return out;
 }
 function syncClips(t, run) {
@@ -629,8 +665,20 @@ function scheduleAudio(ctx, out, offset, total, when) {
   when = when == null ? ctx.currentTime + 0.06 : when;
   const list = [], end = total - offset;
   if (end <= 0) return { nodes: list, when };
-  if (voice && offset < voice.dur) {
-    const s = ctx.createBufferSource(); s.buffer = voice.buffer; s.connect(out); s.start(when, offset); list.push(s);
+  if (voice) {
+    const plan = TL.vo || [{ at: 0, from: 0, len: voice.dur }], cut = plan.length > 1;
+    for (const q of plan) {
+      const skip = Math.max(0, offset - q.at), from = q.from + skip, len = Math.min(q.len - skip, voice.dur - from);
+      if (len <= 0.005) continue;
+      const at = when + Math.max(0, q.at - offset), s = ctx.createBufferSource(); s.buffer = voice.buffer;
+      if (cut) { // tiny fades so the joins never click
+        const g = ctx.createGain(), f = Math.min(0.006, len / 3);
+        g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(1, at + f);
+        g.gain.setValueAtTime(1, at + len - f); g.gain.linearRampToValueAtTime(0, at + len);
+        s.connect(g); g.connect(out);
+      } else s.connect(out);
+      s.start(at, from, len); list.push(s);
+    }
   }
   if (music) {
     const s = ctx.createBufferSource(), g = ctx.createGain(), v = Math.max(0.0001, S.musicVol), fl = Math.min(1.5, total * 0.2);
@@ -743,7 +791,9 @@ function renderScenes() {
 }
 function clipRow(m) {
   if (!m || m.kind !== 'video') return '';
+  const locked = !!voice && !sync, whole = m.fit !== 'cut' && !locked;
   return '<div class="smeta"><span class="tag">Clip ' + m.dur.toFixed(1) + 's</span>' +
+    '<button type="button" class="btn" data-act="fit" aria-pressed="' + whole + '"' + (locked ? ' disabled title="Use Tap to sync on your voiceover so whole clips can play"' : ' title="Whole clip: the scene stretches so the clip is never cut. Cut to fit: the clip follows the scene length"') + '>' + (locked ? 'Cut to voiceover' : whole ? 'Whole clip' : 'Cut to fit') + '</button>' +
     '<button type="button" class="btn" data-act="endmode" title="What happens when the clip is shorter than the scene">' + (m.endMode === 'hold' ? 'Holds last frame' : 'Loops') + '</button>' +
     '<button type="button" class="btn" data-act="sound" aria-pressed="' + (!!m.useSound) + '"' + (m.noAudio ? ' disabled' : '') + '>' + (m.noAudio ? 'No clip sound' : m.useSound ? 'Clip sound: on' : 'Clip sound: off') + '</button></div>';
 }
@@ -752,7 +802,7 @@ function scheduleThumbs() { clearTimeout(thumbTimer); thumbTimer = setTimeout(dr
 function drawThumbs() {
   $$('#scenes canvas').forEach(c => {
     const sc = TL.scenes[+c.closest('li').dataset.i];
-    if (sc) drawFrame(c.getContext('2d'), c.width, c.height, sc.start + sc.dur * 0.72, { thumb: true });
+    if (sc) drawFrame(c.getContext('2d'), c.width, c.height, sc.start + (sc.talk || sc.dur) * 0.72, { thumb: true });
   });
 }
 function renderAudio() {
@@ -780,7 +830,7 @@ function refresh() {
 function changed() { renderChips(); sizePreview(); refresh(); }
 
 /* ---------- media ---------- */
-const PHOTO_NOTE = 'Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. A clip loops if it’s shorter than its scene. Tap a scene to preview it.';
+const PHOTO_NOTE = 'Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. Clips play in full: the scene stretches to fit and the voiceover waits. Tap Whole clip on a scene to cut that clip to fit instead. Tap a scene to preview it.';
 function renderPhotoNote() { $('#photoNote').textContent = PHOTO_NOTE; }
 const isVideoFile = f => /^video\//.test(f.type) || /\.(mp4|m4v|mov|webm|mkv|3gp)$/i.test(f.name || '');
 function waitEvent(el, ev, ms) {
@@ -1373,9 +1423,10 @@ $('#scenes').addEventListener('click', e => {
   const i = +b.closest('li').dataset.i, sc = TL.scenes[i], act = b.dataset.act;
   if (!sc) return;
   if (act === 'seek') { stopPlay(); show(sc.start + Math.min(sc.dur * 0.6, 1.2)); }
-  else if (act === 'minus' || act === 'plus') { durOv[i] = clamp(Math.round((sc.dur + (act === 'plus' ? 0.5 : -0.5)) * 2) / 2, 0.5, 60); playT = sc.start; refresh(); }
+  else if (act === 'minus' || act === 'plus') { durOv[i] = clamp(Math.round((sc.dur + (act === 'plus' ? 0.5 : -0.5)) * 2) / 2, 0.5, MAXCLIP); playT = sc.start; refresh(); }
   else if (act === 'photo') { pendingImg = i; $('#fPhoto').click(); }
   else if (act === 'unphoto') { const old = media.slice(); media[i] = null; dropUnused(old); refresh(); }
+  else if (act === 'fit' && media[i]) { const m = media[i]; m.fit = m.fit === 'cut' ? 'whole' : 'cut'; playT = sc.start; refresh(); }
   else if (act === 'endmode' && media[i]) { const m = media[i]; m.endMode = m.endMode === 'hold' ? 'loop' : 'hold'; m.el.loop = m.endMode === 'loop'; refresh(); }
   else if (act === 'sound' && media[i]) {
     const m = media[i];
