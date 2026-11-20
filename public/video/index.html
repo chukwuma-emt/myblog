@@ -77,6 +77,8 @@ input[type=range]{accent-color:var(--rec);height:44px;margin:0;width:100%;backgr
 textarea{display:block;width:100%;min-height:250px;resize:vertical;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--field);color:var(--ink);font:16px/1.6 "Courier Prime","Courier New",monospace}
 .field{margin-top:18px}
 .lbl,.field>label{display:block;font-weight:700;font-size:15px;margin-bottom:8px}
+.lblrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:8px}
+.lblrow .lbl{margin:0}
 input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);font:16px Archivo,system-ui,sans-serif}
 .toggles{display:flex;flex-wrap:wrap;gap:4px 22px;margin-top:14px}
 .toggle{display:inline-flex;align-items:center;gap:10px;min-height:44px;font-weight:600;cursor:pointer}
@@ -120,7 +122,9 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .tname{min-width:56px;font-weight:600;font-size:14px}
 .trow output{min-width:96px;text-align:center;font-weight:600;font-size:14px;color:var(--muted)}
 .topline{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
-.topexp{min-height:44px;padding:0 18px}
+.topexp{flex:none;min-height:44px;padding:0 22px;font-size:16px}
+.btn[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btns+.tlab,.btns+.trim{margin-top:14px}
 .tabs{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:6px;margin:0 0 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line);box-shadow:0 8px 18px -14px rgba(0,0,0,.6)}
 .tabs button{min-height:44px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:700 14px/1 Archivo,system-ui,sans-serif;cursor:pointer;padding:0 4px}
 .tabs button[aria-selected=true]{background:var(--ink);color:var(--bg)}
@@ -136,13 +140,13 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .dlghead{display:flex;align-items:center;justify-content:space-between;gap:12px}
 #projDlg .card{max-height:calc(100vh - 32px);overflow-y:auto}
 .projs{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-.proj{display:grid;grid-template-columns:auto minmax(0,1fr);gap:12px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.proj{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
 .proj.cur{border-color:var(--rec)}
 .pthumb{width:64px;height:96px;padding:0;border:0;border-radius:8px;overflow:hidden;background:#222;cursor:pointer}
 .pthumb img{width:100%;height:100%;object-fit:cover;display:block}
 .pname{font-weight:700;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
 .pmeta{font-size:13px;color:var(--muted);margin-top:4px}
-.pbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.pbtns{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pbtns .btn{min-height:38px;padding:0 10px;font-size:14px}
 .pren{width:100%;min-height:40px;padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:var(--field);color:var(--ink);font:600 16px Archivo,system-ui,sans-serif}
 .meter{height:10px;border-radius:5px;background:var(--line);overflow:hidden}
@@ -161,6 +165,9 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .cvol{display:flex;align-items:center;gap:8px;flex:1;min-width:160px}
 .cvol input{flex:1;min-width:0}
 .cvol output{min-width:44px;font-weight:600;font-size:14px;color:var(--muted)}
+.credits{margin-top:6px}
+.credits summary{cursor:pointer;font-weight:600;color:var(--muted)}
+.credits p{margin-top:6px}
 .ver{margin-top:6px;font-size:13px;color:var(--muted)}
 .smeta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
 .smeta [aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -233,16 +240,17 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
    <div class="block slim">
     <h3>Photos and clips for every scene</h3>
     <div class="btns"><button class="btn" id="bPhotos" type="button">Add photos or clips</button><button class="btn" id="bPhotosX" type="button" hidden>Remove all</button><button class="btn" id="bAuto" type="button" hidden>Reset timing</button></div>
-    <p class="hint" id="photoNote">Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. Clips play in full: the scene stretches to fit and the voiceover waits. Tap Whole clip on a scene to cut that clip to fit instead. Tap a scene to preview it.</p>
+    <p class="hint" id="photoNote">Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. Clips play in full: the scene stretches to fit and the voiceover waits. To use just part of a clip, tap its scene on the timeline and choose Cut to fit.</p>
    </div>
   </div>
 
   <div class="tabpanel" id="pane-script" data-pane="script" role="tabpanel" aria-labelledby="tab-script" hidden>
    <div class="block">
-    <h2><label for="script">Script</label> <small id="sceneMeta"></small></h2>
+    <div class="lblrow"><label class="lbl" for="script">Your script</label><span class="tag" id="sceneMeta"></span></div>
     <textarea id="script" spellcheck="true" autocapitalize="sentences"></textarea>
    <p class="hint">A blank line starts a new scene. A line that starts with # becomes a title card. Anything in [square brackets] is left out of the video, except a line with just [clip], which makes a scene with no words for a clip on its own.</p>
-   <div class="btns"><p class="hint" id="sampleNote">This is a sample script. Replace it with yours.</p><button class="btn" id="bClear" type="button">Clear</button><button class="btn" id="bNew" type="button">New project</button><button class="btn" id="bSample" type="button">Use sample</button></div>
+   <p class="hint" id="sampleNote">This is a sample script. Replace it with yours.</p>
+   <div class="btns"><button class="btn" id="bClear" type="button">Clear</button><button class="btn" id="bSample" type="button">Use sample</button><button class="btn" id="bNew" type="button">New project</button></div>
    </div>
   </div>
 
@@ -265,30 +273,30 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
    <div class="arow" id="aiRow">
     <div><span class="lbl">AI voiceover</span><p class="hint" id="aiNote"></p></div>
     <div class="seg" role="radiogroup" aria-label="AI voice" data-key="aiVoice"></div>
-    <label class="vol"><span>Speed: <span id="aiSpeedVal"></span></span><input type="range" id="aiSpeed" min="0.8" max="1.2" step="0.05"></label>
+    <label class="vol"><span class="tlab"><span>Voice speed</span><output id="aiSpeedVal"></output></span><input type="range" id="aiSpeed" min="0.8" max="1.2" step="0.05"></label>
     <div class="bar" id="aiBar" hidden><i id="aiBarI"></i></div>
     <div class="btns"><button class="primary" id="bMake" type="button">Make voiceover</button><button class="btn" id="bStop" type="button" hidden>Stop</button><button class="btn" id="bHear" type="button">Try voice (one line)</button><button class="btn" id="bPlayVoice" type="button" hidden>Play from start</button><button class="btn" id="bSaveVoice" type="button" hidden>Save voice file</button></div>
    </div>
    <div class="arow">
     <div><span class="lbl">Voiceover</span><p class="hint" id="voiceNote"></p></div>
-    <div class="btns"><button class="primary" id="bRec" type="button">Record my voice</button><button class="btn" id="bVoice" type="button">Add voiceover</button><button class="btn" id="bSync" type="button" hidden>Tap to sync</button><button class="btn" id="bVoiceX" type="button" hidden>Remove</button></div>
-    <label class="vol" id="vvRow" hidden><span>Voice volume: <span id="vvVal"></span></span><input type="range" id="vvol" min="0" max="200" step="5"></label>
+    <div class="btns"><button class="primary" id="bRec" type="button">Record my voice</button><button class="btn" id="bVoice" type="button">Add a recording</button><button class="btn" id="bSync" type="button" hidden>Tap to sync</button><button class="btn" id="bVoiceX" type="button" hidden>Remove</button></div>
+    <label class="vol" id="vvRow" hidden><span class="tlab"><span>Voice volume</span><output id="vvVal"></output></span><input type="range" id="vvol" min="0" max="200" step="5"></label>
    </div>
    <div class="arow">
     <div><span class="lbl">Music</span><p class="hint" id="musicNote"></p></div>
     <div class="btns"><button class="btn" id="bMusic" type="button">Add music</button><button class="btn" id="bMusicX" type="button" hidden>Remove</button></div>
-    <label class="vol" id="volRow" hidden>Music volume<input type="range" id="vol" min="0" max="100" step="1"></label>
+    <label class="vol" id="volRow" hidden><span class="tlab"><span>Music volume</span><output id="volVal"></output></span><input type="range" id="vol" min="0" max="100" step="1"></label>
     <label class="toggle" id="duckRow" hidden><input type="checkbox" id="tDuck"> Lower the music while the voice speaks</label>
    </div>
-   <div class="field"><label for="pace">Speaking pace: <span id="paceVal"></span> words a minute</label><input type="range" id="pace" min="110" max="210" step="5"><p class="hint" id="paceNote"></p></div>
+   <div class="field"><div class="tlab"><label for="pace">Speaking pace</label><output id="paceVal" for="pace"></output></div><input type="range" id="pace" min="110" max="210" step="5"><p class="hint" id="paceNote"></p></div>
    </div>
   </div>
 
   <div class="tabpanel" id="pane-export" data-pane="export" role="tabpanel" aria-labelledby="tab-export" hidden>
    <div class="block">
-    <h2>Export</h2>
+    <span class="lbl" id="lQual">Video quality</span>
     <div class="exportbar">
-   <div class="seg" role="radiogroup" aria-label="Export quality" data-key="quality"></div>
+   <div class="seg" role="radiogroup" aria-labelledby="lQual" data-key="quality"></div>
    <button class="primary" id="go" type="button">Export video</button>
   </div>
     <p class="hint" id="exportHint">Makes an MP4 you can post on TikTok, Reels, Shorts, WhatsApp or YouTube.</p>
@@ -307,7 +315,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   </div>
  </section>
 </main>
-<footer class="foot">Everything is made on your phone. Your script, clips, photos and sound are kept in this browser and never uploaded anywhere. Encoding uses <a href="https://github.com/Vanilagy/mediabunny">Mediabunny</a> (MPL-2.0) and, where the browser has no AAC encoder of its own, <a href="https://ffmpeg.org/">FFmpeg</a>’s AAC encoder (LGPL-2.1). AI voices use <a href="https://github.com/hexgrad/kokoro">Kokoro-82M</a> (Apache-2.0) with <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> (MIT) and <a href="https://github.com/espeak-ng/espeak-ng">eSpeak NG</a> pronunciation (GPL-3.0). These load only when you use them.<p class="ver" id="ver"></p></footer>
+<footer class="foot"><p>Everything is made on your phone. Your script, clips, photos and sound stay in this browser and are never uploaded.</p><details class="credits"><summary>Credits</summary><p>Encoding uses <a href="https://github.com/Vanilagy/mediabunny">Mediabunny</a> (MPL-2.0) and, where the browser has no AAC encoder of its own, <a href="https://ffmpeg.org/">FFmpeg</a>’s AAC encoder (LGPL-2.1). AI voices use <a href="https://github.com/hexgrad/kokoro">Kokoro-82M</a> (Apache-2.0) with <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> (MIT) and <a href="https://github.com/espeak-ng/espeak-ng">eSpeak NG</a> pronunciation (GPL-3.0). These load only when you use them.</p></details><p class="ver" id="ver"></p></footer>
 
 <div class="dlg" id="syncDlg" hidden>
  <div class="card" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
@@ -341,6 +349,6 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 
-<script src="stv.js?v=2.5"></script>
+<script src="stv.js?v=2.6"></script>
 </body>
 </html>

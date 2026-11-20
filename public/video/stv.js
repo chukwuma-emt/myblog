@@ -91,7 +91,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null, trans = [];
-const VERSION = '2.5';
+const VERSION = '2.6';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 const transOf = i => (i > 0 && (trans[i] || S.trans)) || 'cut';
 const transDur = tr => tr === 'cut' ? 0 : tr === 'fade' ? TR : 0.5;
@@ -985,7 +985,7 @@ function renderScenes() {
   $('#bPhotosX').hidden = !media.some(Boolean);
   $('#bAuto').hidden = !durOv.some(v => v != null) && !sync;
   $('#play').disabled = busy || !n; $('#go').disabled = busy || aiBusy || !n;
-  $('#sampleNote').hidden = S.script !== SAMPLE;
+  $('#sampleNote').hidden = S.script !== SAMPLE; $('#bSample').hidden = S.script === SAMPLE; $('#bClear').hidden = !S.script;
   $('#mfmt').textContent = S.format + ' · ' + fmtT(TL.total);
   curScene = -1;
   if (!ol) return;
@@ -1034,8 +1034,8 @@ function renderAudio() {
   $('#bVoiceX').hidden = !v;
   $('#musicNote').innerHTML = music ? '<b>' + esc(music.name) + '</b> · ' + fmtT(music.dur) + '. Loops if it is shorter than the video and fades out at the end.' : 'Optional background track. It loops and fades out at the end.';
   $('#bMusic').textContent = music ? 'Replace' : 'Add music';
-  $('#bMusicX').hidden = !music; $('#volRow').hidden = !music; $('#vol').value = Math.round(S.musicVol * 100);
-  $('#pace').disabled = v; $('#pace').value = S.wpm; $('#paceVal').textContent = S.wpm;
+  $('#bMusicX').hidden = !music; $('#volRow').hidden = !music; $('#vol').value = Math.round(S.musicVol * 100); $('#volVal').textContent = Math.round(S.musicVol * 100) + '%';
+  $('#pace').disabled = v; $('#pace').value = S.wpm; $('#paceVal').textContent = S.wpm + ' words a minute';
   $('#paceNote').textContent = v ? 'Timing follows your voiceover.' : 'Used when there is no voiceover. Most people speak at 140 to 170.';
 }
 function refresh() {
@@ -1045,7 +1045,7 @@ function refresh() {
 function changed() { renderChips(); sizePreview(); refresh(); }
 
 /* ---------- media ---------- */
-const PHOTO_NOTE = 'Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. Clips play in full: the scene stretches to fit and the voiceover waits. Tap Whole clip on a scene to cut that clip to fit instead. Tap a scene to preview it.';
+const PHOTO_NOTE = 'Photos and clips fill the scenes in order and repeat if you add fewer than the number of scenes. Clips play in full: the scene stretches to fit and the voiceover waits. To use just part of a clip, tap its scene on the timeline and choose Cut to fit.';
 function renderPhotoNote() { $('#photoNote').textContent = PHOTO_NOTE; }
 const isVideoFile = f => /^video\//.test(f.type) || /\.(mp4|m4v|mov|webm|mkv|3gp)$/i.test(f.name || '');
 function waitEvent(el, ev, ms) {
@@ -2022,9 +2022,9 @@ async function renderProjects() {
     return '<li class="proj' + (cur ? ' cur' : '') + '" data-id="' + e.id + '">' +
       '<button type="button" class="pthumb" data-pact="open" aria-label="Open ' + esc(e.name || 'project') + '">' + (e.thumb ? '<img src="' + e.thumb + '" alt="">' : '') + '</button>' +
       '<div class="pinfo">' + (ren ? '<input class="pren" type="text" maxlength="60" value="' + esc(e.name || '') + '" aria-label="Project name">' : '<p class="pname">' + esc(e.name || 'Untitled video') + '</p>') +
-      '<p class="pmeta">' + fmtT(e.dur || 0) + ' · ' + (e.scenes || 0) + (e.scenes === 1 ? ' scene' : ' scenes') + ' · ' + when(e.updated || e.created) + '</p>' +
+      '<p class="pmeta">' + fmtT(e.dur || 0) + ' · ' + (e.scenes || 0) + (e.scenes === 1 ? ' scene' : ' scenes') + ' · ' + when(e.updated || e.created) + '</p></div>' +
       '<div class="pbtns">' + (ren ? '<button type="button" class="btn" data-pact="save">Save name</button>' : (cur ? '<span class="tag">Open now</span>' : '<button type="button" class="btn" data-pact="open">Open</button>') + '<button type="button" class="btn" data-pact="ren">Rename</button>') +
-      '<button type="button" class="btn" data-pact="copy">Copy</button><button type="button" class="btn" data-pact="del">' + (delArmed === e.id ? 'Tap again to delete' : 'Delete') + '</button></div></div></li>';
+      '<button type="button" class="btn" data-pact="copy">Copy</button><button type="button" class="btn" data-pact="del">' + (delArmed === e.id ? 'Tap again to delete' : 'Delete') + '</button></div></li>';
   }).join('');
   const inp = ol.querySelector('.pren');
   if (inp) { inp.focus(); inp.select(); }
@@ -2047,11 +2047,17 @@ function renderTimeline() {
   undoUI();
 }
 // the strip only (scene blocks and text bars), leaving the panel under it alone
+// With no scenes, the Edit tab says how to start instead of going blank.
+function emptyBox() {
+  const box = $('#clipBox');
+  box.hidden = false;
+  box.innerHTML = '<div class="cbhead"><b>No scenes yet</b></div><p class="cbtext">Write your script in Script, or tap + Clip to start with your own photos and clips.</p><button type="button" class="linkbtn" data-tabgo="script">Go to Script</button>';
+}
 function renderStrip() {
   const row = $('#tlRow'), n = TL.scenes.length;
   sel = clamp(sel, 0, Math.max(0, n - 1));
   $('#tl').classList.toggle('empty', !n);
-  if (!n) { row.innerHTML = ''; $('#tlTxt').hidden = true; $('#clipBox').hidden = true; $('#tlSel').textContent = 'Add a clip or type a script to start.'; return false; }
+  if (!n) { row.innerHTML = ''; $('#tlTxt').hidden = true; emptyBox(); $('#tlSel').textContent = ''; return false; }
   const f = FORMATS[S.format].thumb, H = 56, tw = Math.round(H * f[0] / f[1]);
   row.innerHTML = TL.scenes.map((sc, i) => {
     const m = sc.media, label = sc.kind === 'clip' ? (m && m.kind === 'video' ? 'Clip' : m ? 'Photo' : 'Empty scene') : sc.text;
@@ -2077,26 +2083,26 @@ function opsState() {
     b.disabled = dis || !n || (op === 'left' && sel < 1) || (op === 'right' && sel >= n - 1) || (op === 'split' && !sp.ok);
   });
   $('#bAddClip').disabled = dis; $('#bAddText').disabled = dis || !n;
-  $('#tlSel').textContent = n ? 'Scene ' + (sel + 1) + ' of ' + n + ' selected' : '';
+  $('#tlSel').textContent = n ? 'Scene ' + (sel + 1) + ' of ' + n : '';
 }
 const fmtS = x => (Math.round(x * 10) / 10).toFixed(1) + 's';
 function renderClipBox() {
   if (selText && !(ovl[selText.i] && ovl[selText.i][selText.k])) selText = null;
   if (selText) return renderTextBox();
   const box = $('#clipBox'), sc = TL.scenes[sel], m = media[sel];
-  if (!sc) { box.hidden = true; return; }
+  if (!sc) { emptyBox(); return; }
   box.hidden = false;
   if (!m) {
     const fixed0 = sync && sc.kind !== 'clip';
     box.innerHTML = sceneHead(sc, '', fmtS(sc.dur)) +
-      '<div class="btns">' + (fixed0 ? '<span class="tag">Length follows the voiceover</span>' : '<span class="tname">Length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer">+</button>') + '</div>' +
+      '<div class="btns">' + (fixed0 ? '<span class="tag">Scene length follows the voiceover</span>' : '<span class="tname">Scene length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter scene">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer scene">+</button>') + '</div>' +
       '<div class="btns"><button type="button" class="primary" data-act="photo">Add photo or clip</button></div>' + transControls();
     return;
   }
   if (m.kind !== 'video') {
     const fixed = sync && sc.kind !== 'clip';
     box.innerHTML = sceneHead(sc, 'photo', fmtS(sc.dur)) +
-      '<div class="btns">' + (fixed ? '<span class="tag">Length follows the voiceover</span>' : '<span class="tname">Length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer">+</button>') + '</div>' +
+      '<div class="btns">' + (fixed ? '<span class="tag">Scene length follows the voiceover</span>' : '<span class="tname">Scene length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter scene">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer scene">+</button>') + '</div>' +
       '<div class="btns"><button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove photo</button></div>' + lookControls(m) + transControls();
     return;
   }
@@ -2108,11 +2114,13 @@ function renderClipBox() {
   box.innerHTML = sceneHead(sc, 'clip', fmtS(clipLen(m)) + ' of ' + fmtS(m.dur)) +
     trim('in', 'Start', m.in) + trim('out', 'End', m.out) +
     '<div class="btns">' + (sync && sc.kind !== 'clip' ? '<span class="tag">Scene length follows the voiceover</span>' : '<span class="tname">Scene length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter scene">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer scene">+</button>') + '</div>' +
+    clipRowButtons(m) +
     '<div class="field"><span class="lbl">Speed</span><div class="seg" role="radiogroup" aria-label="Clip speed">' +
     [0.5, 0.75, 1, 1.5, 2].map(v => '<button type="button" role="radio" data-speed="' + v + '" aria-checked="' + (Math.abs(sp - v) < 1e-6) + '">' + v + '×</button>').join('') + '</div></div>' +
-    '<div class="field"><span class="lbl">Clip sound</span><div class="btns tight"><button type="button" class="btn" data-act="sound" aria-pressed="' + (!!m.useSound) + '"' + (m.noAudio ? ' disabled' : '') + '>' + (m.noAudio ? 'No sound in clip' : m.useSound ? 'On' : 'Off') + '</button>' +
+    '<div class="field"><span class="lbl">Clip sound</span><div class="btns tight">' + (m.noAudio ? '<button type="button" class="btn" data-act="sound" disabled>No sound in clip</button>' :
+      '<div class="seg" role="radiogroup" aria-label="Clip sound"><button type="button" role="radio" data-act="sound" data-v="off" aria-checked="' + !m.useSound + '">Off</button><button type="button" role="radio" data-act="sound" data-v="on" aria-checked="' + !!m.useSound + '">On</button></div>') +
     '<label class="cvol"><input type="range" data-vol min="0" max="200" step="5" value="' + vol + '" aria-label="Clip volume"' + (m.useSound ? '' : ' disabled') + '><output data-out="vol">' + vol + '%</output></label></div></div>' +
-    '<div class="btns">' + clipRowButtons(m) + '<button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove clip</button></div>' + lookControls(m) + transControls();
+    '<div class="btns"><button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove clip</button></div>' + lookControls(m) + transControls();
 }
 function lookControls(m) {
   const z = m.zoom || 1, fit = m.fitMode === 'fit';
@@ -2120,13 +2128,13 @@ function lookControls(m) {
   return '<div class="field"><span class="lbl">Filter</span><div class="seg" role="radiogroup" aria-label="Filter">' + FILTERS.map(f => '<button type="button" role="radio" data-flt="' + f[0] + '" aria-checked="' + ((m.filter || 'none') === f[0]) + '">' + f[1] + '</button>').join('') + '</div></div>' +
     '<div class="field"><span class="lbl">Framing</span><div class="btns tight">' +
     '<button type="button" class="btn" data-frm="fill" aria-pressed="' + !fit + '">Fill</button><button type="button" class="btn" data-frm="fit" aria-pressed="' + fit + '">Fit</button>' +
-    '<button type="button" class="btn" data-frm="rot">Rotate ' + ((m.rot || 0) % 360) + '°</button><button type="button" class="btn" data-frm="reset">Reset</button></div>' +
+    '<button type="button" class="btn" data-frm="rot">Rotate' + ((m.rot || 0) % 360 ? ' ' + (m.rot % 360) + '°' : '') + '</button><button type="button" class="btn" data-frm="reset">Reset</button></div>' +
     slider('zoom', 'Zoom', 1, 3, 0.05, z, z.toFixed(2).replace(/0$/, '') + '×') +
     slider('px', 'Left · right', -1, 1, 0.02, m.px || 0, '') + slider('py', 'Up · down', -1, 1, 0.02, m.py || 0, '') + '</div>';
 }
 function transControls() {
   const cur = trans[sel] || '';
-  if (sel === 0) return '<div class="field"><span class="lbl">Transition</span><p class="hint">The first scene starts the video, so it has no transition in.</p></div>';
+  if (sel === 0) return '<div class="field"><span class="lbl">Transition into this scene</span><p class="hint">The first scene starts the video, so it has no transition in.</p></div>';
   return '<div class="field"><span class="lbl">Transition into this scene</span><div class="seg" role="radiogroup" aria-label="Transition">' +
     [['', 'Same as all']].concat(OPTS.trans).map(t => '<button type="button" role="radio" data-trn="' + t[0] + '" aria-checked="' + (cur === t[0]) + '">' + t[1] + '</button>').join('') + '</div></div>';
 }
@@ -2136,9 +2144,11 @@ function sceneHead(sc, what, right) {
     '<button type="button" class="linkbtn" data-tabgo="script">Change the words in Script</button>';
 }
 function clipRowButtons(m) {
-  const locked = !!voice && !sync, whole = m.fit !== 'cut' && !locked;
-  return '<button type="button" class="btn" data-act="fit" aria-pressed="' + whole + '"' + (locked ? ' disabled' : '') + '>' + (locked ? 'Cut to voiceover' : whole ? 'Whole clip' : 'Cut to fit') + '</button>' +
-    '<button type="button" class="btn" data-act="endmode">' + (m.endMode === 'hold' ? 'Holds last frame' : 'Loops') + '</button>';
+  const locked = !!voice && !sync, whole = m.fit !== 'cut' && !locked, hold = m.endMode === 'hold';
+  const opt = (act, v, on, label) => '<button type="button" role="radio" data-act="' + act + '" data-v="' + v + '" aria-checked="' + on + '"' + (locked && act === 'fit' ? ' disabled' : '') + '>' + label + '</button>';
+  return '<div class="field"><span class="lbl">Clip length</span><div class="seg" role="radiogroup" aria-label="Clip length">' + opt('fit', 'whole', whole, 'Whole clip') + opt('fit', 'cut', !whole, 'Cut to fit') + '</div>' +
+    '<p class="hint">' + (locked ? 'Clips are cut to fit your recording. Use Tap to sync in Sound so whole clips can play.' : whole ? 'The scene stretches so the whole clip plays.' : 'The clip is cut to the length of the scene.') + '</p></div>' +
+    '<div class="field"><span class="lbl">When the clip runs out</span><div class="seg" role="radiogroup" aria-label="When the clip runs out">' + opt('endmode', 'loop', !hold, 'Loop') + opt('endmode', 'hold', hold, 'Hold last frame') + '</div></div>';
 }
 function setTrim(m, k, v) {
   if (k === 'in') m.in = clamp(Math.round(v * 100) / 100, 0, Math.max(0, m.out - 0.1));
@@ -2392,8 +2402,8 @@ $('#projList').addEventListener('click', e => {
 });
 $('#projList').addEventListener('keydown', e => { if (e.target.classList.contains('pren') && e.key === 'Enter') { e.preventDefault(); const li = e.target.closest('.proj'); renaming = null; renameProject(li.dataset.id, e.target.value); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#projDlg').hidden) closeProjects(); });
-$('#bClear').addEventListener('click', () => { S.script = ''; $('#script').value = ''; refresh(); $('#script').focus(); });
-$('#bSample').addEventListener('click', () => { S.script = SAMPLE; $('#script').value = SAMPLE; playT = 0.9; refresh(); });
+$('#bClear').addEventListener('click', () => { if (busy || !$('#script').value) return; clearTimeout(typing); S.script = $('#script').value; remember(); S.script = ''; $('#script').value = ''; refresh(); $('#script').focus(); });
+$('#bSample').addEventListener('click', () => { if (busy) return; clearTimeout(typing); S.script = $('#script').value; remember(); S.script = SAMPLE; $('#script').value = SAMPLE; playT = 0.9; refresh(); });
 if ($('#scenes')) $('#scenes').addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b || busy) return;
@@ -2406,10 +2416,11 @@ function sceneAct(act, i, b) {
   else if (act === 'minus' || act === 'plus') { remember(); durOv[i] = clamp(Math.round((sc.dur + (act === 'plus' ? 0.5 : -0.5)) * 2) / 2, 0.5, MAXCLIP); playT = sc.start; refresh(); }
   else if (act === 'photo') { pendingImg = i; $('#fPhoto').click(); }
   else if (act === 'unphoto') { remember(); media[i] = null; refresh(); }
-  else if (act === 'fit' && media[i]) { remember(); const m = media[i]; m.fit = m.fit === 'cut' ? 'whole' : 'cut'; playT = sc.start; refresh(); }
-  else if (act === 'endmode' && media[i]) { remember(); const m = media[i]; m.endMode = m.endMode === 'hold' ? 'loop' : 'hold'; applyLoop(m); refresh(); }
+  else if (act === 'fit' && media[i]) { const m = media[i], now = m.fit === 'cut' ? 'cut' : 'whole', v = b && b.dataset.v || (now === 'cut' ? 'whole' : 'cut'); if (v === now) return; remember(); m.fit = v; playT = sc.start; refresh(); }
+  else if (act === 'endmode' && media[i]) { const m = media[i], now = m.endMode === 'hold' ? 'hold' : 'loop', v = b && b.dataset.v || (now === 'hold' ? 'loop' : 'hold'); if (v === now) return; remember(); m.endMode = v; applyLoop(m); refresh(); }
   else if (act === 'sound' && media[i]) {
     const m = media[i];
+    if (b && b.dataset.v && (b.dataset.v === 'on') === !!m.useSound) return;
     remember();
     if (m.useSound) { m.useSound = false; refresh(); return; }
     b.disabled = true; b.textContent = 'Reading sound…'; getCtx();
@@ -2475,8 +2486,8 @@ $('#bSync').addEventListener('click', () => { getCtx(); openSync(); });
 $('#syncBtn').addEventListener('click', syncTap);
 $('#syncCancel').addEventListener('click', closeSync);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && SY) { e.preventDefault(); closeSync(); } });
-$('#vol').addEventListener('input', e => { S.musicVol = clamp(e.target.value / 100, 0, 1); stopPlay(); save(); });
-$('#pace').addEventListener('input', e => { S.wpm = +e.target.value; $('#paceVal').textContent = S.wpm; clearTimeout(typing); typing = setTimeout(refresh, 120); });
+$('#vol').addEventListener('input', e => { S.musicVol = clamp(e.target.value / 100, 0, 1); $('#volVal').textContent = Math.round(S.musicVol * 100) + '%'; stopPlay(); save(); });
+$('#pace').addEventListener('input', e => { S.wpm = +e.target.value; $('#paceVal').textContent = S.wpm + ' words a minute'; clearTimeout(typing); typing = setTimeout(refresh, 120); });
 $('#tUpper').addEventListener('change', e => { S.upper = e.target.checked; changed(); });
 $('#tProg').addEventListener('change', e => { S.progress = e.target.checked; save(); show(playT); });
 $('#handle').addEventListener('input', e => { S.handle = e.target.value; save(); show(playT); });
@@ -2676,7 +2687,7 @@ function setTab(t, scroll) {
   try { localStorage.setItem(TABKEY, t); } catch (e) {}
   if (scroll) { const tb = $('.tabs'); if (tb) tb.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 }
-$('.tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+$('.tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (!b) return; const stuck = $('.tabs').getBoundingClientRect().top <= 2; setTab(b.dataset.tab); if (stuck) $('#panel').scrollIntoView({ block: 'start' }); });
 $('.tabs').addEventListener('keydown', e => {
   if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
   const all = $$('.tabs [role=tab]'), k = all.findIndex(b => b.getAttribute('aria-selected') === 'true');
