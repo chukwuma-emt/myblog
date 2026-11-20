@@ -91,7 +91,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null, trans = [];
-const VERSION = '2.4';
+const VERSION = '2.5';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 const transOf = i => (i > 0 && (trans[i] || S.trans)) || 'cut';
 const transDur = tr => tr === 'cut' ? 0 : tr === 'fade' ? TR : 0.5;
@@ -988,6 +988,7 @@ function renderScenes() {
   $('#sampleNote').hidden = S.script !== SAMPLE;
   $('#mfmt').textContent = S.format + ' · ' + fmtT(TL.total);
   curScene = -1;
+  if (!ol) return;
   if (!n) { ol.innerHTML = '<li class="empty">No scenes yet. Type your script above and they appear here.</li>'; return; }
   ol.style.setProperty('--tw', th[0] + 'px'); ol.style.setProperty('--th', th[1] + 'px');
   ol.innerHTML = TL.scenes.map((s, i) => '<li class="scene" data-i="' + i + '">' +
@@ -2086,15 +2087,17 @@ function renderClipBox() {
   if (!sc) { box.hidden = true; return; }
   box.hidden = false;
   if (!m) {
-    box.innerHTML = '<div class="cbhead"><b>Scene ' + (sel + 1) + '</b><span>' + fmtS(sc.dur) + '</span></div><p class="hint">No photo or clip in this scene yet.</p>' +
-      '<div class="btns"><button type="button" class="btn" data-act="photo">Add photo or clip</button></div>' + transControls();
+    const fixed0 = sync && sc.kind !== 'clip';
+    box.innerHTML = sceneHead(sc, '', fmtS(sc.dur)) +
+      '<div class="btns">' + (fixed0 ? '<span class="tag">Length follows the voiceover</span>' : '<span class="tname">Length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer">+</button>') + '</div>' +
+      '<div class="btns"><button type="button" class="primary" data-act="photo">Add photo or clip</button></div>' + transControls();
     return;
   }
   if (m.kind !== 'video') {
     const fixed = sync && sc.kind !== 'clip';
-    box.innerHTML = '<div class="cbhead"><b>Scene ' + (sel + 1) + ' photo</b><span>' + fmtS(sc.dur) + '</span></div>' +
-      '<div class="btns">' + (fixed ? '<span class="tag">Length follows the voiceover</span>' : '<button type="button" class="btn sq" data-act="minus" aria-label="Shorter">−</button><button type="button" class="btn sq" data-act="plus" aria-label="Longer">+</button>') +
-      '<button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove photo</button></div>' + lookControls(m) + transControls();
+    box.innerHTML = sceneHead(sc, 'photo', fmtS(sc.dur)) +
+      '<div class="btns">' + (fixed ? '<span class="tag">Length follows the voiceover</span>' : '<span class="tname">Length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer">+</button>') + '</div>' +
+      '<div class="btns"><button type="button" class="btn" data-act="photo">Replace</button><button type="button" class="btn" data-act="unphoto">Remove photo</button></div>' + lookControls(m) + transControls();
     return;
   }
   const sp = m.speed || 1, vol = Math.round((m.vol == null ? 1 : m.vol) * 100);
@@ -2102,8 +2105,9 @@ function renderClipBox() {
     '<button type="button" class="btn sq" data-trim="' + k + '" data-d="-0.1" aria-label="' + label + ' earlier">−</button>' +
     '<input type="range" data-trim="' + k + '" min="0" max="' + m.dur.toFixed(2) + '" step="0.05" value="' + v.toFixed(2) + '" aria-label="' + label + ' of the clip">' +
     '<button type="button" class="btn sq" data-trim="' + k + '" data-d="0.1" aria-label="' + label + ' later">+</button></div></div>';
-  box.innerHTML = '<div class="cbhead"><b>Scene ' + (sel + 1) + ' clip</b><span data-out="len">' + fmtS(clipLen(m)) + ' of ' + fmtS(m.dur) + '</span></div>' +
+  box.innerHTML = sceneHead(sc, 'clip', fmtS(clipLen(m)) + ' of ' + fmtS(m.dur)) +
     trim('in', 'Start', m.in) + trim('out', 'End', m.out) +
+    '<div class="btns">' + (sync && sc.kind !== 'clip' ? '<span class="tag">Scene length follows the voiceover</span>' : '<span class="tname">Scene length</span><button type="button" class="btn sq" data-act="minus" aria-label="Shorter scene">−</button><output class="slen">' + fmtS(sc.dur) + '</output><button type="button" class="btn sq" data-act="plus" aria-label="Longer scene">+</button>') + '</div>' +
     '<div class="field"><span class="lbl">Speed</span><div class="seg" role="radiogroup" aria-label="Clip speed">' +
     [0.5, 0.75, 1, 1.5, 2].map(v => '<button type="button" role="radio" data-speed="' + v + '" aria-checked="' + (Math.abs(sp - v) < 1e-6) + '">' + v + '×</button>').join('') + '</div></div>' +
     '<div class="field"><span class="lbl">Clip sound</span><div class="btns tight"><button type="button" class="btn" data-act="sound" aria-pressed="' + (!!m.useSound) + '"' + (m.noAudio ? ' disabled' : '') + '>' + (m.noAudio ? 'No sound in clip' : m.useSound ? 'On' : 'Off') + '</button>' +
@@ -2125,6 +2129,11 @@ function transControls() {
   if (sel === 0) return '<div class="field"><span class="lbl">Transition</span><p class="hint">The first scene starts the video, so it has no transition in.</p></div>';
   return '<div class="field"><span class="lbl">Transition into this scene</span><div class="seg" role="radiogroup" aria-label="Transition">' +
     [['', 'Same as all']].concat(OPTS.trans).map(t => '<button type="button" role="radio" data-trn="' + t[0] + '" aria-checked="' + (cur === t[0]) + '">' + t[1] + '</button>').join('') + '</div></div>';
+}
+function sceneHead(sc, what, right) {
+  return '<div class="cbhead"><b>Scene ' + (sel + 1) + (what ? ' ' + what : '') + '</b><span data-out="len">' + right + '</span></div>' +
+    '<p class="cbtext">' + (sc.kind === 'clip' ? 'No words in this scene, just the picture.' : esc(sc.text)) + '</p>' +
+    '<button type="button" class="linkbtn" data-tabgo="script">Change the words in Script</button>';
 }
 function clipRowButtons(m) {
   const locked = !!voice && !sync, whole = m.fit !== 'cut' && !locked;
@@ -2385,7 +2394,7 @@ $('#projList').addEventListener('keydown', e => { if (e.target.classList.contain
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#projDlg').hidden) closeProjects(); });
 $('#bClear').addEventListener('click', () => { S.script = ''; $('#script').value = ''; refresh(); $('#script').focus(); });
 $('#bSample').addEventListener('click', () => { S.script = SAMPLE; $('#script').value = SAMPLE; playT = 0.9; refresh(); });
-$('#scenes').addEventListener('click', e => {
+if ($('#scenes')) $('#scenes').addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
   if (!b || busy) return;
   sceneAct(b.dataset.act, +b.closest('li').dataset.i, b);
@@ -2658,6 +2667,37 @@ $('#clipBox').addEventListener('input', e => {
 });
 $('#clipBox').addEventListener('change', e => { if (e.target.dataset.frz && !selText) { renderStrip(); scheduleThumbs(); queueSave(); } });
 
+/* ---------- tabs ---------- */
+const TABKEY = 'script-to-video:tab';
+function setTab(t, scroll) {
+  if (!document.querySelector('[data-pane="' + t + '"]')) t = 'edit';
+  $$('.tabs [role=tab]').forEach(b => { const on = b.dataset.tab === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+  $$('.tabpanel').forEach(p => { p.hidden = p.dataset.pane !== t; });
+  try { localStorage.setItem(TABKEY, t); } catch (e) {}
+  if (scroll) { const tb = $('.tabs'); if (tb) tb.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+}
+$('.tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) setTab(b.dataset.tab); });
+$('.tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const all = $$('.tabs [role=tab]'), k = all.findIndex(b => b.getAttribute('aria-selected') === 'true');
+  const nx = all[(k + (e.key === 'ArrowRight' ? 1 : all.length - 1)) % all.length];
+  e.preventDefault(); setTab(nx.dataset.tab); nx.focus();
+});
+$('#bToExport').addEventListener('click', () => setTab('export', true));
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-tabgo]');
+  if (!b) return;
+  setTab(b.dataset.tabgo, true);
+  if (b.dataset.tabgo === 'script') setTimeout(() => { try { $('#script').focus({ preventScroll: true }); } catch (err) {} }, 350);
+});
+// picking something on the timeline or the video opens its tools
+$('#tlRow').addEventListener('click', e => { if (e.target.closest('.tlb')) setTab('edit'); });
+$('#tlTxtIn').addEventListener('click', e => { if (e.target.closest('.tlt')) setTab('edit'); });
+$('#bAddText').addEventListener('click', () => setTab('edit'));
+$('#bAddClip').addEventListener('click', () => setTab('edit'));
+cv.addEventListener('pointerdown', () => { if (selText) setTab('edit'); });
+setTab((() => { try { return localStorage.getItem(TABKEY) || 'edit'; } catch (e) { return 'edit'; } })());
+
 /* ---------- website check: notice when the site's security settings block the tool ---------- */
 function serverNotice(what) {
   let el = $('#serverNote');
@@ -2666,8 +2706,10 @@ function serverNotice(what) {
 }
 const cspSeen = new Set();
 document.addEventListener('securitypolicyviolation', e => {
-  const d = e.effectiveDirective || e.violatedDirective || '';
-  if (cspSeen.has(d)) return;
+  const d = e.effectiveDirective || e.violatedDirective || '', u = String(e.blockedURI || ''), src = String(e.sourceFile || '');
+  // ignore anything the site or Cloudflare adds to the page (analytics, bot checks); only this tool's own files count
+  const ours = u === 'blob' || u.startsWith('blob:') || u === 'wasm-eval' || (u.startsWith(location.origin) && u.includes('/video/')) || ((u === 'eval' || u === 'inline') && src.includes('/video/'));
+  if (!ours || cspSeen.has(d)) return;
   cspSeen.add(d);
   serverNotice(/media/.test(d) ? 'video playback' : /script|worker|wasm/.test(d) ? 'part of the tool' : 'part of the tool');
 });
