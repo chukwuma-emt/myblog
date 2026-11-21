@@ -28,6 +28,8 @@ app.use(methodOverride('_method'));
 // blog's policy blocks. Files that aren't found fall through to the blog as usual.
 app.use('/video',
   helmet({
+    // Cross-origin isolation (with helmet's default same-origin opener policy) lets the AI voice use several processor cores.
+    crossOriginEmbedderPolicy: { policy: 'require-corp' },
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],

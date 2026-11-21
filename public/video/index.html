@@ -6,7 +6,7 @@
 <title>Script to Video</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&family=Courier+Prime:wght@400;700&family=Montserrat:wght@900&family=Playfair+Display:wght@800&display=swap">
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700;800&family=Courier+Prime:wght@400;700&family=Montserrat:wght@900&family=Playfair+Display:wght@800&display=swap">
 <style>
 /* VOICE: a pocket edit suite: quick, practical, confident; nothing between the script and the file.
    IDEA: a field monitor beside a typed screenplay: the cut plays on the monitor, the script is typed in Courier.
@@ -115,6 +115,12 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .tltxtin{position:relative;height:26px}
 .tlt{position:absolute;top:0;height:24px;border:0;border-radius:6px;padding:0 6px;background:#7c5cff;color:#fff;font:600 12px/24px Archivo,system-ui,sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
 .tlt.sel{box-shadow:inset 0 0 0 3px var(--rec)}
+.tlaud{width:max-content;padding:0 50% 5px}
+.tlaudin{position:relative}
+.tla{position:absolute;height:18px;border:0;border-radius:5px;padding:0 6px;color:#fff;font:600 11px/18px Archivo,system-ui,sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;box-shadow:inset -1px 0 0 rgba(0,0,0,.35)}
+.tla.v{background:#14866a}
+.tla.m{background:#2d63c8}
+.tla.lost{background:transparent;color:var(--rec);box-shadow:inset 0 0 0 1px var(--rec)}
 .txin{width:100%;margin-top:10px;min-height:64px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--field);color:var(--ink);font:500 16px/1.35 Archivo,system-ui,sans-serif;resize:vertical}
 .tsws{display:flex;flex-wrap:wrap;gap:8px}
 .tsw{width:40px;height:40px;border-radius:50%;border:2px solid var(--line);background:var(--c);cursor:pointer}
@@ -215,7 +221,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
     <span class="tlsel" id="tlSel"></span>
     <button class="btn" id="bAddText" type="button">+ Text</button><button class="btn" id="bAddClip" type="button">+ Clip</button>
    </div>
-   <div class="tlwrap"><div class="tlstrip" id="tlStrip" aria-label="Timeline. Scroll it to move through the video."><div class="tlrow" id="tlRow"></div><div class="tltxt" id="tlTxt" hidden><div class="tltxtin" id="tlTxtIn"></div></div></div></div>
+   <div class="tlwrap"><div class="tlstrip" id="tlStrip" aria-label="Timeline. Scroll it to move through the video."><div class="tlrow" id="tlRow"></div><div class="tltxt" id="tlTxt" hidden><div class="tltxtin" id="tlTxtIn"></div></div><div class="tlaud" id="tlAud" hidden><div class="tlaudin" id="tlAudIn"></div></div></div></div>
    <div class="tlops" id="tlOps">
     <button class="btn" type="button" data-op="split">Split</button>
     <button class="btn" type="button" data-op="dup">Duplicate</button>
@@ -349,6 +355,6 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 
-<script src="stv.js?v=2.6"></script>
+<script src="stv.js?v=2.7"></script>
 </body>
 </html>

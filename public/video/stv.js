@@ -91,7 +91,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null, trans = [];
-const VERSION = '2.6';
+const VERSION = '2.7';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 const transOf = i => (i > 0 && (trans[i] || S.trans)) || 'cut';
 const transDur = tr => tr === 'cut' ? 0 : tr === 'fade' ? TR : 0.5;
@@ -816,16 +816,38 @@ function show(t) {
 }
 function getCtx() {
   try {
-    if (!actx) {
+    if (!actx || actx.state === 'closed') {
       const C = window.AudioContext || window.webkitAudioContext;
       if (!C) return null;
       actx = new C();
       try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
     }
-    if (actx.state === 'suspended') actx.resume().catch(() => {});
+    // iPhones use "interrupted" as well as "suspended" for stopped audio
+    if (actx.state !== 'running') { const p = actx.resume(); if (p && p.catch) p.catch(() => {}); }
     return actx;
   } catch (e) { return null; }
 }
+// After the phone locks, you switch apps, or a call or another app takes the sound, an iPhone can leave
+// the page's audio stopped for good. From a tap, a stopped one is replaced with a fresh one that plays.
+// Sound already made (voice, music, clip sound) is kept: it works with the new one as it is.
+let ctxHidden = false, ctxStuck = false;
+function liveCtx() {
+  let ctx = getCtx();
+  const tap = !navigator.userActivation || navigator.userActivation.isActive;
+  if (ctx && tap && (ctxHidden || ctxStuck || ctx.state !== 'running')) {
+    try { const p = ctx.close(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+    actx = null; ctx = getCtx();
+  }
+  if (tap) { ctxHidden = false; ctxStuck = false; }
+  return ctx;
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return;
+  ctxHidden = true;
+  if (playing) stopPlay();
+  if (typeof stopSample === 'function') stopSample();
+});
+window.addEventListener('pagehide', () => { ctxHidden = true; });
 function scheduleAudio(ctx, out, offset, total, when) {
   when = when == null ? ctx.currentTime + 0.06 : when;
   const list = [], end = total - offset;
@@ -933,7 +955,9 @@ function nowT() {
   if (!clock) return playT;
   if (clock.a) {
     if (clock.a.state !== 'running') {
-      if (performance.now() - clock.p0 > 500) clock = { t0: performance.now(), off: clock.off };
+      // the phone is holding the sound back: keep the picture going, drop sound that would now come late,
+      // and get a fresh start on the next tap
+      if (performance.now() - clock.p0 > 1200) { clock = { t0: performance.now(), off: clock.off }; ctxStuck = true; stopAudio(); soundHint(true); }
       return clock.off;
     }
     return clock.off + Math.max(0, clock.a.currentTime - clock.t0);
@@ -944,10 +968,15 @@ function setIcon() {
   $('#playIco').setAttribute('d', playing ? 'M6 4.5h4.5v15H6zM13.5 4.5H18v15h-4.5z' : 'M7 4.5v15l12.5-7.5z');
   $('#play').setAttribute('aria-label', playing ? 'Pause' : 'Play');
 }
+function soundHint(on) {
+  const l = $('#mlabel');
+  if (l) l.textContent = on ? 'No sound? Tap pause, then play' : 'Preview';
+}
 function play() {
   if (busy || !TL.total) return;
   if (playT >= TL.total - 0.05) playT = 0;
-  const ctx = voice || music || hasClipSound() ? getCtx() : null;
+  soundHint(false);
+  const ctx = voice || music || hasClipSound() ? liveCtx() : null;
   stopAudio();
   syncClips(playT, true);
   if (ctx) { const g = scheduleAudio(ctx, ctx.destination, playT, TL.total); nodes = g.nodes; clock = { a: ctx, t0: g.when, off: playT, p0: performance.now() }; }
@@ -1021,6 +1050,7 @@ function renderAudio() {
   const v = !!voice;
   $('#voiceNote').innerHTML = v
     ? '<b>' + esc(voice.name) + '</b> · ' + fmtT(voice.dur) + '. ' + (voice.rec ? (voice.key !== scriptKey() ? 'You changed the script after recording. Record again from the scene you changed.' : 'Each scene starts where you tapped Next. To fix a scene, select it on the timeline and record again.') : voice.made ? 'Each scene starts exactly where its line begins.' : sync ? 'Scenes change where you tapped.' : 'Scenes stretch to fit it. For exact timing, tap to sync.')
+    : lost.voice ? '<b>' + esc(lost.voice.name || 'Your voiceover') + '</b> is saved but couldn’t open just now. Close this page and open it again to bring it back. Making or adding a new voice replaces it.'
     : 'Record yourself reading the script, scene by scene, or add a recording you made (a voice memo works). A video file works too; its sound is used.';
   $('#bVoice').textContent = v ? 'Use a file' : 'Add a recording';
   $('#bRec').textContent = v && voice.rec ? 'Record again' : 'Record my voice';
@@ -1140,10 +1170,38 @@ async function loadImage(file) {
   if (im.close) im.close();
   return c;
 }
-async function decodeFile(file) {
+function newBuffer(ch, n, sr) {
+  try { return new AudioBuffer({ numberOfChannels: ch, length: Math.max(1, n), sampleRate: sr }); } catch (e) {}
   const ctx = getCtx();
   if (!ctx) throw new Error('no audio support');
+  return ctx.createBuffer(ch, Math.max(1, n), sr);
+}
+// 16-bit WAV, as this tool saves voiceovers: read directly
+function wavBuffer(ab) {
+  const v = new DataView(ab);
+  if (v.byteLength < 44 || v.getUint32(0) !== 0x52494646 || v.getUint32(8) !== 0x57415645) return null;
+  let o = 12, fmt = null, data = null;
+  while (o + 8 <= v.byteLength) {
+    const id = v.getUint32(o), len = v.getUint32(o + 4, true);
+    if (id === 0x666d7420 && len >= 16) fmt = { pcm: v.getUint16(o + 8, true), ch: v.getUint16(o + 10, true), sr: v.getUint32(o + 12, true), bits: v.getUint16(o + 22, true) };
+    else if (id === 0x64617461) { data = { at: o + 8, len: Math.min(len, v.byteLength - o - 8) }; break; }
+    o += 8 + len + (len & 1);
+  }
+  if (!fmt || !data || fmt.pcm !== 1 || fmt.bits !== 16 || fmt.ch < 1 || fmt.ch > 2 || fmt.sr < 8000) return null;
+  const ch = fmt.ch, n = Math.floor(data.len / (2 * ch)), buf = newBuffer(ch, n, fmt.sr);
+  const pcm = data.at % 2 === 0 ? new Int16Array(ab, data.at, n * ch) : null;
+  for (let c = 0; c < ch; c++) {
+    const out = buf.getChannelData(c);
+    if (pcm) for (let k = 0; k < n; k++) out[k] = pcm[k * ch + c] / 32768;
+    else for (let k = 0; k < n; k++) out[k] = v.getInt16(data.at + (k * ch + c) * 2, true) / 32768;
+  }
+  return buf;
+}
+async function decodeFile(file) {
   const data = await file.arrayBuffer();
+  try { const w = wavBuffer(data); if (w) return w; } catch (e) { /* not one of ours: let the browser read it */ }
+  const ctx = getCtx();
+  if (!ctx) throw new Error('no audio support');
   return await new Promise((res, rej) => {
     try { const p = ctx.decodeAudioData(data, res, rej); if (p && typeof p.then === 'function') p.then(res, rej); } catch (e) { rej(e); }
   });
@@ -1161,23 +1219,36 @@ async function mixAudio(total) {
 const VOICE_NAMES = {};
 OPTS.aiVoice.forEach(o => { VOICE_NAMES[o[0]] = o[1].split(' · ')[0]; });
 const VSR = 24000;
-let VW = null, vwReady = null, vwRes = null, vwRej = null, vwOnProgress = null, vwSeq = 0, aiBusy = false, aiStop = false, aiSample = null;
+let VW = null, vwReady = null, vwRes = null, vwRej = null, vwOnProgress = null, vwSeq = 0, aiBusy = false, aiStop = false, aiSample = null, vwThreads = 0, warmAsked = false;
 const vwPending = new Map();
+// If the engine can't start on several cores on this phone, it starts again on one.
+let vwMax = 0, vwStart = null, vwTrying = 0;
+function engineOneCore(why) {
+  console.warn('[script-to-video] voice engine: several cores didn’t start (' + why + '), using one');
+  vwMax = 1; vwTrying = 0;
+  try { VW.terminate(); } catch (x) {}
+  VW = null;
+  voiceWorker().postMessage(Object.assign({}, vwStart, { maxThreads: 1 }));
+}
 function voiceWorker() {
   if (VW) return VW;
-  VW = new Worker('lib/voice/worker.js');
+  // a module worker, so the engine can start helper threads on several processor cores
+  VW = new Worker('lib/voice/worker.js?v=' + VERSION, { type: 'module' });
   VW.onmessage = e => {
     const m = e.data;
     if (m.type === 'progress') { if (vwOnProgress) vwOnProgress(m.loaded, m.total); }
-    else if (m.type === 'status') { aiNoteSet('Starting the voice engine…'); engineStarting(); }
-    else if (m.type === 'ready') { if (vwRes) vwRes(); }
+    else if (m.type === 'status') { vwTrying = m.threads || 1; if (aiBusy) aiNoteSet('Starting the voice engine…'); if (vwRej) engineStarting(); }
+    else if (m.type === 'ready') { vwThreads = m.threads || 1; if (vwRes) vwRes(); }
     else if (m.type === 'audio') { const p = vwPending.get(m.id); vwPending.delete(m.id); if (p) p.res(m.audio); }
     else if (m.type === 'error') {
+      if (m.start && m.threads > 1 && !vwMax && vwStart) return engineOneCore(m.message);
       if (m.id != null && vwPending.has(m.id)) { const p = vwPending.get(m.id); vwPending.delete(m.id); p.rej(new Error(m.message)); }
       else if (vwRej) vwRej(new Error(m.message));
+      else console.warn('[script-to-video] voice engine warm-up:', m.message);
     }
   };
   VW.onerror = e => {
+    if (!vwThreads && !vwMax && vwStart && window.crossOriginIsolated) { if (e && e.preventDefault) e.preventDefault(); return engineOneCore((e && e.message) || 'stopped'); }
     const err = new Error((e && e.message) || 'The voice engine stopped.');
     if (vwRej) vwRej(err);
     vwPending.forEach(p => p.rej(err)); vwPending.clear();
@@ -1193,14 +1264,26 @@ function engineReady(onProgress) {
     vwReady = new Promise((res, rej) => {
       vwRes = () => { clearTimeout(vwTimer); res(); };
       vwRej = e => { clearTimeout(vwTimer); rej(e); };
-      voiceWorker().postMessage({ type: 'init' });
+      vwStart = { type: 'init', maxThreads: vwMax || undefined };
+      voiceWorker().postMessage(vwStart);
     }).catch(e => { vwReady = null; if (VW) { try { VW.terminate(); } catch (x) {} VW = null; } throw e; });
   }
   return vwReady;
 }
+// Once the engine has been downloaded, start it in the background when the Sound tab opens,
+// so Make voiceover can begin straight away. Nothing is downloaded here.
+function engineWarm() {
+  if (warmAsked || vwReady || aiBusy) return;
+  if (navigator.deviceMemory && navigator.deviceMemory < 3) return; // low-memory phones start it only when asked
+  warmAsked = true;
+  vwStart = { type: 'warm', maxThreads: vwMax || undefined };
+  try { voiceWorker().postMessage(vwStart); } catch (e) {}
+}
 function engineStarting() {
   clearTimeout(vwTimer);
-  vwTimer = setTimeout(() => { if (vwRej) vwRej(new Error('start timeout')); }, 120000);
+  // a start on several cores that hangs gets one more try on one core
+  const many = vwTrying > 1 && !vwMax;
+  vwTimer = setTimeout(() => { if (!vwRej) return; if (many && vwStart) engineOneCore('took too long'); else vwRej(new Error('start timeout')); }, many ? 60000 : 120000);
 }
 function aiFail(e) {
   const m = String((e && e.message) || e || '');
@@ -1217,14 +1300,33 @@ function speakAI(text, voiceId, speed) {
     voiceWorker().postMessage({ type: 'speak', id, text, voice: voiceId, speed });
   });
 }
+// Voice already made for a line this session: same words, voice and speed are reused, not made again.
+const said = new Map(); let saidLen = 0;
+const SAID_MAX = VSR * 300; // keep up to five minutes of made voice
+function saidGet(k) { const a = said.get(k); if (a) { said.delete(k); said.set(k, a); } return a || null; }
+function saidPut(k, a) {
+  if (said.has(k)) return;
+  said.set(k, a); saidLen += a.length;
+  while (saidLen > SAID_MAX && said.size > 1) { const [k0, a0] = said.entries().next().value; said.delete(k0); saidLen -= a0.length; }
+}
+const saidKey = (text, v, sp) => v + '|' + sp + '|' + text;
+async function speakLine(text, v, sp) {
+  const k = saidKey(text, v, sp), hit = saidGet(k);
+  if (hit) return hit;
+  const a = await speakAI(text, v, sp);
+  saidPut(k, a);
+  return a;
+}
 const scriptKey = () => TL.scenes.map(s => s.text).join('\n');
+let slowVoiceHint = false;
 function aiNoteSet(t) { $('#aiNote').textContent = t; }
 function aiBarSet(p) { $('#aiBar').hidden = p == null; if (p != null) $('#aiBarI').style.width = (clamp(p, 0, 1) * 100).toFixed(1) + '%'; }
 function aiDefaultNote() {
   if (voice && voice.made && voice.key !== scriptKey()) return 'You changed the script after making this voice. Make the voiceover again so they match.';
   if (voice && voice.rec) return 'Using your own recorded voice. Make an AI voiceover to replace it.';
   if (voice && voice.made) return 'Voiceover ready in ' + voice.voiceName + '. Tap Play from start to hear the whole script with your video.';
-  return 'Free voices made on this phone from your script. The first time, it downloads the voice engine (about 110 MB) once. After that it starts in seconds.';
+  return 'Free voices made on this phone from your script. The first time, it downloads the voice engine (about 110 MB) once. After that it starts in seconds.' +
+    (slowVoiceHint ? ' Voices are being made on one processor core. Restart the site (in VPS Control Center, deploy Blog again) to use several and make them faster.' : '');
 }
 function setAiBusy(b, label) {
   aiBusy = b;
@@ -1251,13 +1353,13 @@ function joinF32(list) {
 function stopSample() { if (aiSample) { try { aiSample.stop(); } catch (e) {} aiSample = null; } }
 async function hearVoice() {
   if (aiBusy || busy) return;
-  const ctx = getCtx();
+  const ctx = liveCtx();
   stopPlay(); stopSample(); setAiBusy(true, 'hear');
   try {
     await ensureEngine();
     aiNoteSet('Making a short sample…'); aiBarSet(null);
     const first = (TL.scenes.length && sentences(TL.scenes.find(s => s.kind === 'text') ? TL.scenes.find(s => s.kind === 'text').text : TL.scenes[0].text)[0]) || 'Hello! This is how I sound.';
-    const a = await speakAI(first.slice(0, 220), S.aiVoice, S.aiSpeed);
+    const a = await speakLine(first.slice(0, 220), S.aiVoice, S.aiSpeed);
     if (ctx && a.length) {
       const buf = ctx.createBuffer(1, a.length, VSR); buf.copyToChannel(a, 0);
       const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start(); aiSample = src;
@@ -1288,6 +1390,7 @@ async function polish(all, sr) {
   if (peak > 0) { const g = Math.min(3, 0.89 / peak); for (let i = 0; i < all.length; i++) all[i] *= g; }
   return all;
 }
+const fmtLeft = s => s < 60 ? Math.ceil(s / 5) * 5 + ' seconds' : Math.round(s / 60) === 1 ? 'a minute' : Math.round(s / 60) + ' minutes';
 async function makeVoice() {
   if (aiBusy) return;
   if (busy || !TL.scenes.length) return;
@@ -1299,15 +1402,24 @@ async function makeVoice() {
   try {
     await ensureEngine();
     const pieces = [], n = scenes.length;
-    let made = 0;
-    const totalSent = scenes.reduce((a, s) => a + sentences(s.text).length, 0);
+    // progress counts characters still to be voiced, so lines reused from before don't skew it
+    const todo = [].concat(...scenes.map(s => sentences(s.text))).filter(t => !said.has(saidKey(t, vId, speed)));
+    const total = todo.reduce((a, t) => a + t.length, 0) || 1;
+    let done = 0, spent = 0;
     for (let i = 0; i < n; i++) {
       const parts = [];
       for (const s of sentences(scenes[i].text)) {
         if (aiStop) throw new Error('stopped');
-        aiNoteSet('Making the voice: scene ' + (i + 1) + ' of ' + n + '…'); aiBarSet(made / totalSent);
-        const a = await speakAI(s, vId, speed);
-        parts.push(a, silence(0.22)); made++;
+        const fresh = !said.has(saidKey(s, vId, speed));
+        if (fresh) {
+          const left = done >= 40 && spent > 0 ? (total - done) * spent / done / 1000 : 0;
+          aiNoteSet('Making the voice: scene ' + (i + 1) + ' of ' + n + (left > 8 ? ' · about ' + fmtLeft(left) + ' left' : '') + '…');
+          aiBarSet(done / total);
+        }
+        const t0 = performance.now();
+        const a = await speakLine(s, vId, speed);
+        if (fresh) { done += s.length; spent += performance.now() - t0; }
+        parts.push(a, silence(0.22));
       }
       if (parts.length) parts[parts.length - 1] = silence(scenes[i].kind === 'title' ? 0.7 : 0.45);
       else if (scenes[i].kind !== 'clip') parts.push(silence(1));
@@ -1382,7 +1494,7 @@ function recShow() {
   $('#recFrom').hidden = REC.state !== 'ready';
 }
 async function recBegin() {
-  const ctx = getCtx();
+  const ctx = liveCtx();
   if (!ctx) throw new Error('This browser can’t record sound.');
   try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) {}
   const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
@@ -1790,6 +1902,9 @@ async function startExport() {
 // Nothing is ever sent to the website.
 const DBN = 'stv-project';
 let dbP = null, saveTimer = 0, restoring = false, storedIds = null;
+// Things saved in this project that couldn't be opened this time (low memory, a busy phone). They stay saved,
+// untouched, and are tried again the next time the project opens, instead of being dropped on the next save.
+let lost = { voice: null, sync: null, music: null, objs: [] };
 const fileIds = new WeakMap();
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function fileId(f) { let id = fileIds.get(f); if (!id) { id = newId(); fileIds.set(f, id); } return id; }
@@ -1852,10 +1967,15 @@ async function saveProject() {
   if (music && music.file) { mu = { fid: fileId(music.file), name: music.name }; files.set(mu.fid, music.file); }
   if (!storedIds) storedIds = new Set((await idb('files', 'readonly', st => st.getAllKeys())) || []);
   for (const [fid, f] of files) if (!storedIds.has(fid)) { await idb('files', 'readwrite', st => st.put(f, fid)); storedIds.add(fid); }
+  const ids = new Set(files.keys());
+  let syncOut = sync;
+  if (voice) lost.voice = null; else if (lost.voice) { v = lost.voice; syncOut = lost.sync; ids.add(v.fid); }
+  if (music) lost.music = null; else if (lost.music) { mu = lost.music; ids.add(mu.fid); }
+  lost.objs.forEach(x => ids.add(x.o.fid));
   const look = Object.assign({}, S); delete look.quality;
-  await idb('state', 'readwrite', st => st.put({ v: 2, script: S.script, look, objs, scenes, durOv: durOv.slice(0, scenes.length), sync, voice: v, music: mu, sel, playT, ovl, trans, saved: Date.now() }, 'p:' + curId));
+  await idb('state', 'readwrite', st => st.put({ v: 2, script: S.script, look, objs, scenes, durOv: durOv.slice(0, scenes.length), sync: syncOut, voice: v, music: mu, lost: lost.objs.length ? lost.objs : null, sel, playT, ovl, trans, saved: Date.now() }, 'p:' + curId));
   const ix = await getIndex(), e = ix.list.find(x => x.id === curId);
-  if (e) Object.assign(e, { name: e.named ? e.name : autoName(), updated: Date.now(), dur: TL.total, scenes: TL.scenes.length, thumb: projThumb(), files: Array.from(files.keys()) });
+  if (e) Object.assign(e, { name: e.named ? e.name : autoName(), updated: Date.now(), dur: TL.total, scenes: TL.scenes.length, thumb: projThumb(), files: Array.from(ids) });
   await putIndex(ix);
   // a file stays while any project still uses it
   const used = new Set(); ix.list.forEach(x => (x.files || []).forEach(f => used.add(f)));
@@ -1911,46 +2031,69 @@ function teardown() {
   for (const m of Array.from(LIVE)) disposeMedia(m);
   LIVE.clear(); UNDO.length = 0; REDO.length = 0;
   media = []; durOv = []; sync = null; voice = null; music = null; ovl = []; trans = []; sel = 0; playT = 0;
+  lost = { voice: null, sync: null, music: null, objs: [] };
 }
 async function restoreProject(id) {
   let pj = null;
   try { pj = await idb('state', 'readonly', st => st.get('p:' + id)); } catch (e) { return; }
   if (!pj) return;
   restoring = true;
+  lost = { voice: null, sync: null, music: null, objs: [] };
   const note = $('#photoNote');
   note.textContent = 'Opening your project…';
   try {
     const getFile = async fid => { const f = await idb('files', 'readonly', st => st.get(fid)); if (f) fileIds.set(f, fid); return f || null; };
-    const objs = [];
-    for (const o of pj.objs) {
-      let m = null;
+    // a missing file is gone; a file that is there but won't open now is kept for next time
+    const openObj = async o => {
+      const f = await getFile(o.fid);
+      if (!f) return null;
       try {
-        const f = await getFile(o.fid);
-        if (f) {
-          m = o.kind === 'video' ? await loadClip(f) : { kind: 'image', img: await loadImage(f), name: o.name, file: f };
-          m.name = o.name || m.name;
-          Object.assign(m, pickF(o, LOOKF));
-          if (o.kind === 'video') { Object.assign(m, { in: clamp(+o.in || 0, 0, m.dur), out: clamp(+o.out || m.dur, 0, m.dur), speed: +o.speed || 1, vol: o.vol == null ? 1 : +o.vol, fit: o.fit, endMode: o.endMode || 'loop' }); if (m.out - m.in < 0.1) { m.in = 0; m.out = m.dur; } applyLoop(m); if (o.useSound) { await ensureClipAudio(m); m.useSound = !!m.audio; } }
-        }
-      } catch (e) { console.warn(e); m = null; }
-      objs.push(m);
+        const m = o.kind === 'video' ? await loadClip(f) : { kind: 'image', img: await loadImage(f), name: o.name, file: f };
+        m.name = o.name || m.name;
+        Object.assign(m, pickF(o, LOOKF));
+        if (o.kind === 'video') { Object.assign(m, { in: clamp(+o.in || 0, 0, m.dur), out: clamp(+o.out || m.dur, 0, m.dur), speed: +o.speed || 1, vol: o.vol == null ? 1 : +o.vol, fit: o.fit, endMode: o.endMode || 'loop' }); if (m.out - m.in < 0.1) { m.in = 0; m.out = m.dur; } applyLoop(m); if (o.useSound) { await ensureClipAudio(m); m.useSound = !!m.audio; } }
+        return m;
+      } catch (e) { console.warn('[script-to-video] could not open', o.name, e); return false; }
+    };
+    const objs = [];
+    for (let k = 0; k < pj.objs.length; k++) {
+      const o = pj.objs[k], m = await openObj(o);
+      if (m === false) lost.objs.push({ o, at: pj.scenes.reduce((a, x, i) => x === k ? a.concat(i) : a, []) });
+      objs.push(m || null);
     }
     if (pj.look && typeof pj.look === 'object') { const q = S.quality; S = load.call(null, pj.look); S.quality = q; }
     if (typeof pj.script === 'string') { S.script = pj.script; }
     $('#script').value = S.script; $('#handle').value = S.handle;
     media = pj.scenes.map(k => k >= 0 ? objs[k] || null : null);
+    // photos and clips that couldn't open last time: try again, back on their scenes if those are still free
+    for (const x of Array.isArray(pj.lost) ? pj.lost : []) {
+      if (!x || !x.o || !x.o.fid) continue;
+      const m = await openObj(x.o);
+      if (m) { (x.at || []).forEach(i => { if (i < media.length && !media[i]) media[i] = m; }); }
+      else if (m === false) lost.objs.push(x);
+    }
     durOv = Array.isArray(pj.durOv) ? pj.durOv.map(x => x == null ? undefined : +x) : [];
     if (pj.voice) {
-      try { const f = await getFile(pj.voice.fid); if (f) { const b = await decodeFile(f); voice = { buffer: b, dur: b.duration, name: pj.voice.name, made: pj.voice.made, rec: !!pj.voice.rec, key: pj.voice.key, voiceName: pj.voice.voiceName, file: f }; } } catch (e) { voice = null; }
+      const f = await getFile(pj.voice.fid);
+      if (f) {
+        try { const b = await decodeFile(f); voice = { buffer: b, dur: b.duration, name: pj.voice.name, made: pj.voice.made, rec: !!pj.voice.rec, key: pj.voice.key, voiceName: pj.voice.voiceName, file: f }; }
+        catch (e) { console.warn('[script-to-video] could not open the voiceover', e); voice = null; lost.voice = pj.voice; lost.sync = Array.isArray(pj.sync) ? pj.sync : null; }
+      }
     }
     if (pj.music) {
-      try { const f = await getFile(pj.music.fid); if (f) { const b = await decodeFile(f); music = { buffer: b, dur: b.duration, name: pj.music.name, file: f }; } } catch (e) { music = null; }
+      const f = await getFile(pj.music.fid);
+      if (f) {
+        try { const b = await decodeFile(f); music = { buffer: b, dur: b.duration, name: pj.music.name, file: f }; }
+        catch (e) { console.warn('[script-to-video] could not open the music', e); music = null; lost.music = pj.music; }
+      }
     }
     sync = voice && Array.isArray(pj.sync) ? pj.sync : null;
     trans = Array.isArray(pj.trans) ? pj.trans.map(t => OPTS.trans.some(x => x[0] === t) ? t : null) : [];
     ovl = Array.isArray(pj.ovl) ? pj.ovl.map(a => Array.isArray(a) ? a.filter(o => o && typeof o.text === 'string') : []) : [];
     sel = pj.sel || 0; playT = +pj.playT || 0;
-    note.textContent = (pj.objs || []).length || pj.voice ? 'Your project is back. Find your other videos in My projects at the top.' : PHOTO_NOTE;
+    const missed = [lost.voice && 'voiceover', lost.music && 'music', lost.objs.length && (lost.objs.length === 1 ? 'one clip' : lost.objs.length + ' clips')].filter(Boolean);
+    note.textContent = missed.length ? 'Your ' + missed.join(' and ') + ' couldn’t open just now, so ' + (missed.length > 1 || lost.objs.length > 1 ? 'they are' : 'it is') + ' kept safe. Close this page and open it again to bring ' + (missed.length > 1 || lost.objs.length > 1 ? 'them' : 'it') + ' back.'
+      : (pj.objs || []).length || pj.voice ? 'Your project is back. Find your other videos in My projects at the top.' : PHOTO_NOTE;
   } finally { restoring = false; }
   renderChips(); sizePreview(); refresh(); setProjName();
 }
@@ -2057,7 +2200,7 @@ function renderStrip() {
   const row = $('#tlRow'), n = TL.scenes.length;
   sel = clamp(sel, 0, Math.max(0, n - 1));
   $('#tl').classList.toggle('empty', !n);
-  if (!n) { row.innerHTML = ''; $('#tlTxt').hidden = true; emptyBox(); $('#tlSel').textContent = ''; return false; }
+  if (!n) { row.innerHTML = ''; $('#tlTxt').hidden = true; $('#tlAud').hidden = true; emptyBox(); $('#tlSel').textContent = ''; return false; }
   const f = FORMATS[S.format].thumb, H = 56, tw = Math.round(H * f[0] / f[1]);
   row.innerHTML = TL.scenes.map((sc, i) => {
     const m = sc.media, label = sc.kind === 'clip' ? (m && m.kind === 'video' ? 'Clip' : m ? 'Photo' : 'Empty scene') : sc.text;
@@ -2073,8 +2216,33 @@ function renderStrip() {
   $('#tlTxt').hidden = !bars.length;
   $('#tlTxtIn').style.width = (TL.total * PXS).toFixed(2) + 'px';
   $('#tlTxtIn').innerHTML = bars.join('');
+  renderSoundLanes();
   tlFollow(playT);
   return true;
+}
+// Voice and music under the scenes, so it's plain that they're there and where they play
+function renderSoundLanes() {
+  const px = x => (x * PXS).toFixed(2) + 'px', out = [];
+  let row = 0;
+  const bar = (cls, a, b, label, aria) => out.push('<button type="button" class="tla ' + cls + '" style="top:' + row * 20 + 'px;left:' + px(a) + ';width:' + px(Math.max(0.3, b - a)) + '" aria-label="' + esc(aria) + '">' + esc(label) + '</button>');
+  if (voice) {
+    const plan = TL.vo || [{ at: 0, from: 0, len: voice.dur }], runs = [];
+    for (const q of plan) {
+      const a = q.at, b = Math.min(TL.total, q.at + q.len);
+      if (b - a < 0.02) continue;
+      const l = runs[runs.length - 1];
+      if (l && a - l[1] < 0.05) l[1] = Math.max(l[1], b); else runs.push([a, b]);
+    }
+    const nm = 'Voice' + (voice.voiceName ? ' · ' + voice.voiceName : voice.rec ? ' · yours' : '');
+    runs.forEach((r, k) => bar('v', r[0], r[1], k ? 'Voice' : nm, 'Voiceover. Open Sound'));
+    row++;
+  } else if (lost.voice) { bar('lost', 0, TL.total, 'Voiceover saved, couldn’t open. Tap', 'Voiceover saved but couldn’t open. Open Sound'); row++; }
+  if (music) { bar('m', 0, TL.total, 'Music · ' + music.name, 'Music. Open Sound'); row++; }
+  else if (lost.music) { bar('lost', 0, TL.total, 'Music saved, couldn’t open. Tap', 'Music saved but couldn’t open. Open Sound'); row++; }
+  $('#tlAud').hidden = !row;
+  const inner = $('#tlAudIn');
+  inner.style.width = px(TL.total); inner.style.height = row * 20 + 'px';
+  inner.innerHTML = out.join('');
 }
 function opsState() {
   const n = TL.scenes.length, sp = n ? splitInfo(playT) : { ok: false }, dis = busy || aiBusy;
@@ -2474,14 +2642,14 @@ $('#fMusic').addEventListener('change', async e => {
   try { const b = await decodeFile(f); remember(); music = { buffer: b, dur: b.duration, name: f.name, file: f }; refresh(); }
   catch (err) { renderAudio(); $('#musicNote').textContent = 'That file couldn’t be read. Try MP3, M4A or WAV.'; }
 });
-$('#bVoiceX').addEventListener('click', () => { remember(); voice = null; sync = null; refresh(); });
+$('#bVoiceX').addEventListener('click', () => { remember(); voice = null; sync = null; lost.voice = null; refresh(); });
 $('#bMake').addEventListener('click', makeVoice);
 $('#bHear').addEventListener('click', hearVoice);
 $('#bStop').addEventListener('click', () => { if (aiBusy) { aiStop = true; aiNoteSet('Stopping…'); } });
 $('#bPlayVoice').addEventListener('click', playFromStart);
 $('#bSaveVoice').addEventListener('click', saveVoice);
 $('#aiSpeed').addEventListener('input', e => { S.aiSpeed = clamp(+e.target.value, 0.8, 1.2); $('#aiSpeedVal').textContent = S.aiSpeed.toFixed(2).replace(/0$/, '') + '×'; save(); });
-$('#bMusicX').addEventListener('click', () => { remember(); music = null; refresh(); });
+$('#bMusicX').addEventListener('click', () => { remember(); music = null; lost.music = null; refresh(); });
 $('#bSync').addEventListener('click', () => { getCtx(); openSync(); });
 $('#syncBtn').addEventListener('click', syncTap);
 $('#syncCancel').addEventListener('click', closeSync);
@@ -2685,6 +2853,7 @@ function setTab(t, scroll) {
   $$('.tabs [role=tab]').forEach(b => { const on = b.dataset.tab === t; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
   $$('.tabpanel').forEach(p => { p.hidden = p.dataset.pane !== t; });
   try { localStorage.setItem(TABKEY, t); } catch (e) {}
+  if (t === 'sound') engineWarm();
   if (scroll) { const tb = $('.tabs'); if (tb) tb.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 }
 $('.tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (!b) return; const stuck = $('.tabs').getBoundingClientRect().top <= 2; setTab(b.dataset.tab); if (stuck) $('#panel').scrollIntoView({ block: 'start' }); });
@@ -2704,6 +2873,7 @@ document.addEventListener('click', e => {
 // picking something on the timeline or the video opens its tools
 $('#tlRow').addEventListener('click', e => { if (e.target.closest('.tlb')) setTab('edit'); });
 $('#tlTxtIn').addEventListener('click', e => { if (e.target.closest('.tlt')) setTab('edit'); });
+$('#tlAudIn').addEventListener('click', e => { if (e.target.closest('.tla')) { stopPlay(); setTab('sound'); } });
 $('#bAddText').addEventListener('click', () => setTab('edit'));
 $('#bAddClip').addEventListener('click', () => setTab('edit'));
 cv.addEventListener('pointerdown', () => { if (selText) setTab('edit'); });
@@ -2728,6 +2898,7 @@ if (window.top === window && location.protocol.startsWith('http')) {
   fetch(location.href, { method: 'HEAD', cache: 'no-store' }).then(r => {
     const csp = r.headers.get('content-security-policy') || '';
     if (csp && !/wasm-unsafe-eval|'unsafe-eval'/.test(csp)) serverNotice('the AI voice engine');
+    else if (csp && !r.headers.get('cross-origin-embedder-policy')) { slowVoiceHint = true; if (!aiBusy) aiNoteSet(aiDefaultNote()); }
   }).catch(() => {});
 }
 
@@ -2767,6 +2938,7 @@ function useNormalDownloads() {
 }
 if (hasClaude()) useClaudeSaving();
 else setTimeout(() => { if (hasClaude()) useClaudeSaving(); else useNormalDownloads(); }, 1200);
+window.__stvVoice = () => ({ threads: vwThreads, saidLines: said.size, warm: warmAsked, coi: !!window.crossOriginIsolated, audio: actx ? actx.state : null, voice: voice ? +voice.dur.toFixed(2) : null, voiceRate: voice ? voice.buffer.sampleRate : null, lost: { voice: !!lost.voice, music: !!lost.music, objs: lost.objs.length }, nodes: nodes.length, playing, hint: $('#mlabel').textContent, ctx: () => actx });
 window.__stv = { exportNow: startExport, out: () => lastOut, dbg: () => ({ trans, look: media.map(m => m ? Object.assign({ kind: m.kind }, pickF(m, LOOKF)) : null), drag: drag ? { kind: drag.h.kind, moved: drag.moved } : null, playT, sel, undo: UNDO.length, redo: REDO.length, script: S.script, sync, ovl, capY: S.capY, selText, selCap, cv: [cv.width, cv.height], hits: HITS.map(h => ({ kind: h.kind, i: h.i, k: h.k, x0: Math.round(h.x0), y0: Math.round(h.y0), x1: Math.round(h.x1), y1: Math.round(h.y1) })), media: media.map(m => m && m.kind === 'video' ? { in: m.in, out: m.out, speed: m.speed, vol: m.vol, dur: m.dur, name: m.name } : m ? 'image' : null) }), state: () => ({ S, total: TL.total, scenes: TL.scenes.map(s => ({ kind: s.kind, text: s.text, start: s.start, dur: s.dur })) }),
   set: o => { if (o.look && !('font' in o)) o = Object.assign({ font: LOOKS[o.look].font, upper: LOOKS[o.look].upper }, o); Object.assign(S, o); changed(); }, frame: (t, W, H) => { const c = document.createElement('canvas'); c.width = W; c.height = H; drawFrame(c.getContext('2d'), W, H, t); return c.toDataURL('image/jpeg', 0.9); } };
 }
