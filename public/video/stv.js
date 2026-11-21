@@ -91,7 +91,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null, trans = [];
-const VERSION = '2.7';
+const VERSION = '2.8';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 const transOf = i => (i > 0 && (trans[i] || S.trans)) || 'cut';
 const transDur = tr => tr === 'cut' ? 0 : tr === 'fade' ? TR : 0.5;
@@ -257,7 +257,14 @@ function build() {
     sc.clipOffset = p && sc.media && sc.media.kind === 'video' && p.media === sc.media ? p.clipOffset + p.dur : 0;
     wordTimes(sc); chunksFor(sc);
   });
-  TL = { scenes, total: n ? scenes[n - 1].start + scenes[n - 1].dur : 0, vo };
+  const total = n ? scenes[n - 1].start + scenes[n - 1].dur : 0, mi = [];
+  // overlays (photos and clips on top), by time; each belongs to a scene and can run on past it
+  scenes.forEach((sc, i) => (sc.ovl || []).forEach((it, k) => {
+    if (!it || it.kind !== 'media' || !it.m) return;
+    const a = sc.start + it.at, b = Math.min(total, sc.start + itemEnd(sc, it));
+    if (b > a + 0.01) mi.push({ i, k, it, a, b });
+  }));
+  TL = { scenes, total, vo, mi };
 }
 
 /* ---------- drawing ---------- */
@@ -645,7 +652,8 @@ function textLines(ctx, text, maxW) {
   }
   return out.length ? out : [{ s: '', w: 0 }];
 }
-const itemEnd = (sc, it) => it.dur == null ? sc.dur : Math.min(sc.dur, it.at + it.dur);
+// text stays inside its scene; an overlay can run on into the scenes after it
+const itemEnd = (sc, it) => it.dur == null ? sc.dur : it.kind === 'media' ? it.at + it.dur : Math.min(sc.dur, it.at + it.dur);
 function drawItem(ctx, W, H, it, p, q, hit) {
   let a = 1, s = 1, dy = 0;
   if (it.anim === 'pop') { a = clamp(p / 0.12, 0, 1) * clamp(q / 0.2, 0, 1); s = 0.72 + 0.28 * outBack(clamp(p / 0.32, 0, 1)); }
@@ -680,6 +688,7 @@ function drawItems(ctx, W, H, sc, lt, mode) {
   const list = sc.ovl;
   if (!list || !list.length) return;
   list.forEach((it, k) => {
+    if (it.kind === 'media') return;
     const end = itemEnd(sc, it);
     if (lt < it.at || lt >= end) return;
     const hit = HITREC ? Object.assign(HITREC, { ref: { kind: 'text', i: sc.i, k } }) : null;
@@ -690,6 +699,61 @@ function drawItems(ctx, W, H, sc, lt, mode) {
       ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.restore();
     }
   });
+}
+
+/* ---------- overlays: photos and clips on top ---------- */
+// width and height of an overlay's picture
+function mediaAR(m) {
+  if (m.kind === 'video') { const w = (m.el && m.el.videoWidth) || (m.poster && m.poster.width), h = (m.el && m.el.videoHeight) || (m.poster && m.poster.height); return w && h ? w / h : 16 / 9; }
+  const im = m.img; return im && im.width && im.height ? im.width / im.height : 1;
+}
+function ovSize(it, W, H) {
+  const ar = mediaAR(it.m), w = clamp(it.w || 0.5, 0.05, 6) * W;
+  return { w, h: it.shape === 'circle' ? w : w / ar, ar };
+}
+function drawOverlay(ctx, W, H, it, src, sw, sh, p, q, hit) {
+  const z = ovSize(it, W, H), w = z.w, h = z.h, circle = it.shape === 'circle';
+  const cx = clamp(it.x, 0, 1) * W, cy = clamp(it.y, 0, 1) * H;
+  let a = clamp(it.op == null ? 1 : it.op, 0, 1), s = 1;
+  if (it.anim === 'fade') a *= clamp(p / 0.35, 0, 1) * clamp(q / 0.35, 0, 1);
+  else if (it.anim === 'pop') { a *= clamp(p / 0.12, 0, 1) * clamp(q / 0.2, 0, 1); s = 0.72 + 0.28 * outBack(clamp(p / 0.32, 0, 1)); }
+  if (hit) hit.push(Object.assign({ x0: Math.max(0, cx - w / 2), x1: Math.min(W, cx + w / 2), y0: Math.max(0, cy - h / 2), y1: Math.min(H, cy + h / 2) }, hit.ref));
+  if (a <= 0.001) return;
+  ctx.save();
+  ctx.globalAlpha *= a;
+  ctx.globalCompositeOperation = it.blend === 'screen' ? 'screen' : it.blend === 'multiply' ? 'multiply' : 'source-over';
+  ctx.translate(cx, cy); if (s !== 1) ctx.scale(s, s);
+  const r = circle ? 0 : it.shape === 'round' ? Math.min(w, h) * 0.08 : 0;
+  ctx.beginPath();
+  if (circle) ctx.arc(0, 0, w / 2, 0, Math.PI * 2); else if (r) rrect(ctx, -w / 2, -h / 2, w, h, r); else ctx.rect(-w / 2, -h / 2, w, h);
+  ctx.save(); ctx.clip();
+  if (src && sw && sh) {
+    // the picture fills the shape; a circle shows the middle of it
+    const k = Math.max(w / sw, h / sh);
+    try { ctx.drawImage(src, -sw * k / 2, -sh * k / 2, sw * k, sh * k); } catch (e) {}
+  } else { ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fill(); }
+  ctx.restore();
+  if (it.border) { ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = Math.max(2, Math.min(W, H) * 0.008); ctx.strokeStyle = '#ffffff'; ctx.stroke(); }
+  ctx.restore();
+}
+function drawMediaItems(ctx, W, H, t, mode) {
+  for (const e of TL.mi || []) {
+    if (t < e.a || t >= e.b) continue;
+    const it = e.it, m = it.m;
+    let src = null, sw = 0, sh = 0;
+    if (m.kind === 'video') {
+      if (mode === 'export' && m.exportFrame) { src = m.exportFrame; sw = src.width; sh = src.height; }
+      else if (mode !== 'thumb' && m.el && m.el.readyState >= 2 && m.el.videoWidth) { src = m.el; sw = m.el.videoWidth; sh = m.el.videoHeight; }
+      else if (m.poster) { src = m.poster; sw = src.width; sh = src.height; }
+    } else if (m.img) { src = m.img; sw = src.width; sh = src.height; }
+    const hit = HITREC ? Object.assign(HITREC, { ref: { kind: 'text', i: e.i, k: e.k } }) : null;
+    drawOverlay(ctx, W, H, it, src, sw, sh, t - e.a, e.b - t, hit);
+    if (mode === 'preview' && selText && selText.i === e.i && selText.k === e.k && HITREC && HITREC.length) {
+      const b = HITREC[HITREC.length - 1];
+      ctx.save(); ctx.strokeStyle = '#ff5446'; ctx.lineWidth = Math.max(2, W / 360); ctx.setLineDash([W / 60, W / 90]);
+      ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0); ctx.restore();
+    }
+  }
 }
 
 // When a whole clip makes a scene outlast its words, the words fade away and the clip plays on
@@ -723,6 +787,7 @@ function drawFrame(ctx, W, H, t, o) {
     if (fade && a > 0) drawText(ctx, W, H, U, prev, prev.dur - 1e-3, a, th);
   }
   HITREC = mode === 'preview' ? [] : null;
+  drawMediaItems(ctx, W, H, t, mode);
   const ta = textFade(sc, lt);
   if (ta > 0) drawText(ctx, W, H, U, sc, lt, ta, th);
   drawItems(ctx, W, H, sc, lt, mode);
@@ -752,7 +817,7 @@ const clipHost = document.createElement('div');
 clipHost.setAttribute('aria-hidden', 'true');
 clipHost.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none;overflow:hidden;z-index:-1';
 document.body.appendChild(clipHost);
-const allClips = () => Array.from(new Set(media.filter(m => m && m.kind === 'video')));
+const allClips = () => Array.from(new Set(media.filter(m => m && m.kind === 'video').concat((TL.mi || []).map(e => e.it.m).filter(m => m.kind === 'video'))));
 function visibleClips(t) {
   const scs = TL.scenes, out = [];
   if (!scs.length) return out;
@@ -761,6 +826,7 @@ function visibleClips(t) {
   // a clip that played right to its end holds its last frame through the crossfade instead of starting over
   if (p && p.media && p.media.kind === 'video' && p.media !== sc.media) out.push({ m: p.media, x: p.dur + lt + p.clipOffset, hold: Math.abs(p.clipOffset + p.dur - clipLen(p.media)) < 0.05 });
   if (sc.media && sc.media.kind === 'video') out.push({ m: sc.media, x: lt + sc.clipOffset });
+  for (const e of TL.mi || []) if (e.it.m.kind === 'video' && t >= e.a && t < e.b) out.push({ m: e.it.m, x: t - e.a });
   out.forEach(v => {
     const hold = v.hold || v.m.endMode === 'hold';
     v.ct = clipTime(v.m, v.x, hold);
@@ -934,9 +1000,11 @@ function clipRuns() {
   });
   return runs;
 }
-const hasClipSound = () => clipRuns().some(r => r.m.useSound && r.m.audio);
+// scene clips and overlay clips, each with its place on the timeline
+const soundRuns = () => clipRuns().concat((TL.mi || []).filter(e => e.it.m.kind === 'video').map(e => ({ m: e.it.m, t0: e.a, t1: e.b })));
+const hasClipSound = () => soundRuns().some(r => r.m.useSound && r.m.audio);
 function scheduleClipSound(ctx, out, offset, when, list) {
-  for (const r of clipRuns()) {
+  for (const r of soundRuns()) {
     const m = r.m, a = m.audio;
     if (!m.useSound || !a || r.t1 <= offset) continue;
     const from = Math.max(r.t0, offset), x = from - r.t0, sp = m.speed || 1;
@@ -1142,9 +1210,10 @@ function wakeMedia(m) {
   try { m.el.load(); } catch (e) {}
   applyLoop(m);
 }
+const itemMedia = list => { const out = []; for (const a of list || []) for (const it of a || []) if (it && it.kind === 'media' && it.m) out.push(it.m); return out; };
 function gcMedia() {
-  const cur = new Set(media.filter(Boolean)), keep = new Set(cur);
-  for (const st of UNDO.concat(REDO)) for (const m of st.media) if (m) keep.add(m);
+  const cur = new Set(media.filter(Boolean).concat(itemMedia(ovl))), keep = new Set(cur);
+  for (const st of UNDO.concat(REDO)) { for (const m of st.media) if (m) keep.add(m); for (const m of itemMedia(st.ovl)) keep.add(m); }
   cur.forEach(m => LIVE.add(m));
   for (const m of Array.from(LIVE)) {
     if (cur.has(m)) wakeMedia(m);
@@ -1746,11 +1815,12 @@ async function exportFast(W, H, audio, job) {
 }
 // Clip frames for the MP4 export, decoded exactly at the times each frame needs
 async function openClipFeeds(M, W, H, n, job) {
-  const feeds = new Map(), used = Array.from(new Set(TL.scenes.map(sc => sc.media).filter(m => m && m.kind === 'video')));
+  // every clip on screen at some frame, scenes and overlays alike, with the moments it is needed
+  const feeds = new Map(), seqs = new Map();
+  for (let i = 0; i < n; i++) for (const v of visibleClips(i / FPS)) { if (!seqs.has(v.m)) seqs.set(v.m, []); seqs.get(v.m).push(v.ct); }
+  const used = Array.from(seqs.keys());
   if (!used.length) return feeds;
   jobUI('Reading your clips…', 0, '');
-  const seqs = new Map(used.map(m => [m, []]));
-  for (let i = 0; i < n; i++) for (const v of visibleClips(i / FPS)) seqs.get(v.m).push(v.ct);
   try {
     for (const m of used) {
       if (job.cancel) throw new Error('cancelled');
@@ -1759,7 +1829,7 @@ async function openClipFeeds(M, W, H, n, job) {
       const track = await input.getPrimaryVideoTrack();
       if (!track || !(await track.canDecode())) throw new Error('This browser can’t read the clip ' + m.name + ' for a fast export');
       const first = await track.getFirstTimestamp();
-      const dw = await track.getDisplayWidth(), dh = await track.getDisplayHeight(), k = Math.min(1, 1920 / Math.max(dw, dh, 1));
+      const dw = await track.getDisplayWidth(), dh = await track.getDisplayHeight(), k = Math.min(1, (m.ov ? 1280 : 1920) / Math.max(dw, dh, 1));
       const sink = new M.CanvasSink(track, { width: Math.max(2, Math.round(dw * k)), height: Math.max(2, Math.round(dh * k)), fit: 'fill', poolSize: 2 });
       feeds.get(m).it = sink.canvasesAtTimestamps(seqs.get(m).map(x => x + first));
     }
@@ -1904,7 +1974,7 @@ const DBN = 'stv-project';
 let dbP = null, saveTimer = 0, restoring = false, storedIds = null;
 // Things saved in this project that couldn't be opened this time (low memory, a busy phone). They stay saved,
 // untouched, and are tried again the next time the project opens, instead of being dropped on the next save.
-let lost = { voice: null, sync: null, music: null, objs: [] };
+let lost = { voice: null, sync: null, music: null, objs: [], ovs: [] };
 const fileIds = new WeakMap();
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function fileId(f) { let id = fileIds.get(f); if (!id) { id = newId(); fileIds.set(f, id); } return id; }
@@ -1958,6 +2028,9 @@ async function saveProject() {
     objs.push(o); idx.set(m, objs.length - 1); return objs.length - 1;
   };
   const scenes = media.map(keep);
+  // overlays point at their photo or clip by number, as scenes do
+  const ovlOut = [];
+  for (let i = 0; i < ovl.length; i++) ovlOut.push((ovl[i] || []).filter(Boolean).map(it => { if (it.kind !== 'media') return it; const c = Object.assign({}, it); delete c.m; c.oi = keep(it.m); return c; }));
   let v = null, mu = null;
   if (voice) {
     if (!voice.file) voice.file = wavBlob(voice.buffer);
@@ -1972,8 +2045,9 @@ async function saveProject() {
   if (voice) lost.voice = null; else if (lost.voice) { v = lost.voice; syncOut = lost.sync; ids.add(v.fid); }
   if (music) lost.music = null; else if (lost.music) { mu = lost.music; ids.add(mu.fid); }
   lost.objs.forEach(x => ids.add(x.o.fid));
+  for (const x of lost.ovs) if (x.i < TL.scenes.length) { while (ovlOut.length <= x.i) ovlOut.push([]); objs.push(x.o); ovlOut[x.i].push(Object.assign({}, x.it, { oi: objs.length - 1 })); ids.add(x.o.fid); }
   const look = Object.assign({}, S); delete look.quality;
-  await idb('state', 'readwrite', st => st.put({ v: 2, script: S.script, look, objs, scenes, durOv: durOv.slice(0, scenes.length), sync: syncOut, voice: v, music: mu, lost: lost.objs.length ? lost.objs : null, sel, playT, ovl, trans, saved: Date.now() }, 'p:' + curId));
+  await idb('state', 'readwrite', st => st.put({ v: 2, script: S.script, look, objs, scenes, durOv: durOv.slice(0, scenes.length), sync: syncOut, voice: v, music: mu, lost: lost.objs.length ? lost.objs : null, sel, playT, ovl: ovlOut, trans, saved: Date.now() }, 'p:' + curId));
   const ix = await getIndex(), e = ix.list.find(x => x.id === curId);
   if (e) Object.assign(e, { name: e.named ? e.name : autoName(), updated: Date.now(), dur: TL.total, scenes: TL.scenes.length, thumb: projThumb(), files: Array.from(ids) });
   await putIndex(ix);
@@ -2031,14 +2105,14 @@ function teardown() {
   for (const m of Array.from(LIVE)) disposeMedia(m);
   LIVE.clear(); UNDO.length = 0; REDO.length = 0;
   media = []; durOv = []; sync = null; voice = null; music = null; ovl = []; trans = []; sel = 0; playT = 0;
-  lost = { voice: null, sync: null, music: null, objs: [] };
+  lost = { voice: null, sync: null, music: null, objs: [], ovs: [] };
 }
 async function restoreProject(id) {
   let pj = null;
   try { pj = await idb('state', 'readonly', st => st.get('p:' + id)); } catch (e) { return; }
   if (!pj) return;
   restoring = true;
-  lost = { voice: null, sync: null, music: null, objs: [] };
+  lost = { voice: null, sync: null, music: null, objs: [], ovs: [] };
   const note = $('#photoNote');
   note.textContent = 'Opening your project…';
   try {
@@ -2055,10 +2129,10 @@ async function restoreProject(id) {
         return m;
       } catch (e) { console.warn('[script-to-video] could not open', o.name, e); return false; }
     };
-    const objs = [];
+    const objs = [], failed = new Set();
     for (let k = 0; k < pj.objs.length; k++) {
-      const o = pj.objs[k], m = await openObj(o);
-      if (m === false) lost.objs.push({ o, at: pj.scenes.reduce((a, x, i) => x === k ? a.concat(i) : a, []) });
+      const o = pj.objs[k], m = await openObj(o), at = pj.scenes.reduce((a, x, i) => x === k ? a.concat(i) : a, []);
+      if (m === false) { failed.add(k); if (at.length) lost.objs.push({ o, at }); }
       objs.push(m || null);
     }
     if (pj.look && typeof pj.look === 'object') { const q = S.quality; S = load.call(null, pj.look); S.quality = q; }
@@ -2089,10 +2163,20 @@ async function restoreProject(id) {
     }
     sync = voice && Array.isArray(pj.sync) ? pj.sync : null;
     trans = Array.isArray(pj.trans) ? pj.trans.map(t => OPTS.trans.some(x => x[0] === t) ? t : null) : [];
-    ovl = Array.isArray(pj.ovl) ? pj.ovl.map(a => Array.isArray(a) ? a.filter(o => o && typeof o.text === 'string') : []) : [];
+    ovl = Array.isArray(pj.ovl) ? pj.ovl.map((a, i) => !Array.isArray(a) ? [] : a.map(o => {
+      if (!o) return null;
+      if (o.kind !== 'media') return typeof o.text === 'string' ? o : null;
+      const m = o.oi >= 0 ? objs[o.oi] : null, it = Object.assign({}, o);
+      delete it.oi;
+      if (m) { m.ov = true; it.m = m; return it; }
+      if (failed.has(o.oi)) lost.ovs.push({ i, it, o: pj.objs[o.oi] }); // couldn't open now: kept for next time
+      return null;
+    }).filter(Boolean)) : [];
     sel = pj.sel || 0; playT = +pj.playT || 0;
-    const missed = [lost.voice && 'voiceover', lost.music && 'music', lost.objs.length && (lost.objs.length === 1 ? 'one clip' : lost.objs.length + ' clips')].filter(Boolean);
-    note.textContent = missed.length ? 'Your ' + missed.join(' and ') + ' couldn’t open just now, so ' + (missed.length > 1 || lost.objs.length > 1 ? 'they are' : 'it is') + ' kept safe. Close this page and open it again to bring ' + (missed.length > 1 || lost.objs.length > 1 ? 'them' : 'it') + ' back.'
+    const nObjs = lost.objs.length + lost.ovs.length;
+    const missed = [lost.voice && 'your voiceover', lost.music && 'your music', nObjs && (nObjs === 1 ? 'one of your clips' : nObjs + ' of your clips')].filter(Boolean);
+    const many = missed.length > 1 || nObjs > 1, list = missed.length > 1 ? missed.slice(0, -1).join(', ') + ' and ' + missed[missed.length - 1] : missed[0] || '';
+    note.textContent = missed.length ? list.charAt(0).toUpperCase() + list.slice(1) + ' couldn’t open just now, so ' + (many ? 'they are' : 'it is') + ' kept safe. Close this page and open it again to bring ' + (many ? 'them' : 'it') + ' back.'
       : (pj.objs || []).length || pj.voice ? 'Your project is back. Find your other videos in My projects at the top.' : PHOTO_NOTE;
   } finally { restoring = false; }
   renderChips(); sizePreview(); refresh(); setProjName();
@@ -2200,7 +2284,7 @@ function renderStrip() {
   const row = $('#tlRow'), n = TL.scenes.length;
   sel = clamp(sel, 0, Math.max(0, n - 1));
   $('#tl').classList.toggle('empty', !n);
-  if (!n) { row.innerHTML = ''; $('#tlTxt').hidden = true; $('#tlAud').hidden = true; emptyBox(); $('#tlSel').textContent = ''; return false; }
+  if (!n) { row.innerHTML = ''; $('#tlTxt').hidden = true; $('#tlOv').hidden = true; $('#tlAud').hidden = true; emptyBox(); $('#tlSel').textContent = ''; return false; }
   const f = FORMATS[S.format].thumb, H = 56, tw = Math.round(H * f[0] / f[1]);
   row.innerHTML = TL.scenes.map((sc, i) => {
     const m = sc.media, label = sc.kind === 'clip' ? (m && m.kind === 'video' ? 'Clip' : m ? 'Photo' : 'Empty scene') : sc.text;
@@ -2208,8 +2292,20 @@ function renderStrip() {
       '<canvas width="' + tw * 2 + '" height="' + H * 2 + '"></canvas><span>' + esc(label) + '</span><i>' + sc.dur.toFixed(1) + 's</i></button>';
   }).join('');
   $$('#tlRow canvas').forEach((c, i) => { const sc = TL.scenes[i]; drawFrame(c.getContext('2d'), c.width, c.height, sc.start + Math.min(sc.talk || sc.dur, sc.dur) * 0.5, { thumb: true }); });
+  // overlays get their own lane; ones that overlap in time stack in rows
+  const ob = [], rowEnd = [];
+  for (const e of (TL.mi || []).slice().sort((p, q) => p.a - q.a)) {
+    let r = rowEnd.findIndex(x => x <= e.a + 1e-3); if (r < 0) { r = rowEnd.length; rowEnd.push(0); }
+    rowEnd[r] = e.b;
+    const on = selText && selText.i === e.i && selText.k === e.k, nm = (e.it.m.kind === 'video' ? 'Clip' : 'Photo') + ' · ' + (e.it.m.name || '');
+    ob.push('<button type="button" class="tlt ov' + (on ? ' sel' : '') + '" data-i="' + e.i + '" data-k="' + e.k + '" style="top:' + r * 26 + 'px;left:' + (e.a * PXS).toFixed(2) + 'px;width:' + Math.max(14, (e.b - e.a) * PXS).toFixed(2) + 'px" aria-label="Overlay: ' + esc(nm) + '">' + esc(nm) + '</button>');
+  }
+  $('#tlOv').hidden = !ob.length;
+  $('#tlOvIn').style.width = (TL.total * PXS).toFixed(2) + 'px'; $('#tlOvIn').style.height = rowEnd.length * 26 + 'px';
+  $('#tlOvIn').innerHTML = ob.join('');
   const bars = [];
   TL.scenes.forEach((sc, i) => (sc.ovl || []).forEach((it, k) => {
+    if (it.kind === 'media') return;
     const a = sc.start + Math.min(it.at, sc.dur), b = sc.start + itemEnd(sc, it), on = selText && selText.i === i && selText.k === k;
     bars.push('<button type="button" class="tlt' + (on ? ' sel' : '') + '" data-i="' + i + '" data-k="' + k + '" style="left:' + (a * PXS).toFixed(2) + 'px;width:' + Math.max(14, (b - a) * PXS).toFixed(2) + 'px" aria-label="Text: ' + esc(it.text || '') + '">' + esc(it.text || 'Text') + '</button>');
   }));
@@ -2250,13 +2346,13 @@ function opsState() {
     const op = b.dataset.op;
     b.disabled = dis || !n || (op === 'left' && sel < 1) || (op === 'right' && sel >= n - 1) || (op === 'split' && !sp.ok);
   });
-  $('#bAddClip').disabled = dis; $('#bAddText').disabled = dis || !n;
+  $('#bAddClip').disabled = dis; $('#bAddText').disabled = dis || !n; $('#bAddOvl').disabled = dis || !n;
   $('#tlSel').textContent = n ? 'Scene ' + (sel + 1) + ' of ' + n : '';
 }
 const fmtS = x => (Math.round(x * 10) / 10).toFixed(1) + 's';
 function renderClipBox() {
   if (selText && !(ovl[selText.i] && ovl[selText.i][selText.k])) selText = null;
-  if (selText) return renderTextBox();
+  if (selText) return curItem() && curItem().kind === 'media' ? renderOverlayBox() : renderTextBox();
   const box = $('#clipBox'), sc = TL.scenes[sel], m = media[sel];
   if (!sc) { emptyBox(); return; }
   box.hidden = false;
@@ -2360,6 +2456,94 @@ function renderTextBox() {
     '<div class="field"><span class="lbl">Place</span><div class="btns tight"><button type="button" class="btn" data-txp="0.16">Top</button><button type="button" class="btn" data-txp="0.5">Middle</button><button type="button" class="btn" data-txp="0.84">Bottom</button></div></div>' +
     '<div class="btns"><button type="button" class="btn" data-txo="dup">Duplicate text</button><button type="button" class="btn" data-txo="del">Delete text</button><button type="button" class="primary" data-txo="done">Done</button></div>';
 }
+// the size that fills the whole frame, as a share of its width
+function fillW(it) { const f = FORMATS[S.format], ar = it.shape === 'circle' ? 1 : mediaAR(it.m); return Math.max(1, (f.h / f.w) * ar); }
+function renderOverlayBox() {
+  const box = $('#clipBox'), it = curItem(), sc = TL.scenes[selText.i];
+  if (!it || !sc) { selText = null; return renderClipBox(); }
+  const m = it.m, vid = m.kind === 'video', end = itemEnd(sc, it), pct = v => Math.round(v * 100) + '%';
+  box.hidden = false;
+  const seg = (attr, list, cur, label) => '<div class="seg" role="radiogroup" aria-label="' + label + '">' + list.map(o => '<button type="button" role="radio" ' + attr + '="' + o[0] + '" aria-checked="' + (cur === o[0]) + '">' + o[1] + '</button>').join('') + '</div>';
+  const slider = (attr, label, min, max, v, out) => '<div class="field"><div class="tlab"><span>' + label + '</span><output data-out="' + attr + '">' + out + '</output></div><input type="range" data-' + attr + ' min="' + min + '" max="' + max + '" step="1" value="' + v + '" aria-label="' + label + '"></div>';
+  let clip = '';
+  if (vid) {
+    const sp = m.speed || 1, vol = Math.round((m.vol == null ? 1 : m.vol) * 100);
+    const trim = (k, label, v) => '<div class="trim"><div class="tlab"><span>' + label + '</span><output data-out="ov' + k + '">' + fmtS(v) + '</output></div><div class="trow">' +
+      '<button type="button" class="btn sq" data-ovt="' + k + '" data-d="-0.1" aria-label="' + label + ' earlier">−</button>' +
+      '<input type="range" data-ovt="' + k + '" min="0" max="' + m.dur.toFixed(2) + '" step="0.05" value="' + v.toFixed(2) + '" aria-label="' + label + ' of the clip">' +
+      '<button type="button" class="btn sq" data-ovt="' + k + '" data-d="0.1" aria-label="' + label + ' later">+</button></div></div>';
+    clip = trim('in', 'Clip starts at', m.in) + trim('out', 'Clip ends at', m.out) +
+      '<div class="field"><span class="lbl">Speed</span>' + seg('data-ovsp', [0.5, 0.75, 1, 1.5, 2].map(v => [String(v), v + '×']), String(sp), 'Clip speed') + '</div>' +
+      '<div class="field"><span class="lbl">Clip sound</span><div class="btns tight">' + (m.noAudio ? '<button type="button" class="btn" disabled>No sound in clip</button>' : seg('data-ovsnd', [['off', 'Off'], ['on', 'On']], m.useSound ? 'on' : 'off', 'Clip sound')) +
+      '<label class="cvol"><input type="range" data-ovvol min="0" max="200" step="5" value="' + vol + '" aria-label="Clip volume"' + (m.useSound ? '' : ' disabled') + '><output data-out="ovvol">' + vol + '%</output></label></div></div>';
+  }
+  const fw = fillW(it);
+  box.innerHTML = '<div class="cbhead"><b>Overlay on scene ' + (selText.i + 1) + '</b><span data-out="span">' + fmtS(it.at) + ' to ' + fmtS(end) + '</span></div>' +
+    '<p class="hint">Drag it on the video to move it. Pinch it with two fingers, or use Size, to change its size.</p>' +
+    slider('ovw', 'Size', 10, Math.max(120, Math.ceil(fw * 100)), Math.round(it.w * 100), pct(it.w)) +
+    '<div class="field"><span class="lbl">Place</span><div class="btns tight"><button type="button" class="btn" data-ovp="fill">Fill the screen</button><button type="button" class="btn" data-ovp="mid">Centre</button><button type="button" class="btn" data-ovp="tl">Top left</button><button type="button" class="btn" data-ovp="tr">Top right</button><button type="button" class="btn" data-ovp="br">Bottom right</button></div></div>' +
+    '<div class="field"><span class="lbl">Shape</span>' + seg('data-ovs', [['rect', 'Square'], ['round', 'Rounded'], ['circle', 'Circle']], it.shape || 'rect', 'Shape') + '</div>' +
+    '<div class="field"><span class="lbl">Border</span>' + seg('data-ovb', [['off', 'None'], ['on', 'White']], it.border ? 'on' : 'off', 'Border') + '</div>' +
+    slider('ovop', 'Opacity', 10, 100, Math.round((it.op == null ? 1 : it.op) * 100), pct(it.op == null ? 1 : it.op)) +
+    '<div class="field"><span class="lbl">Blend</span>' + seg('data-ovm', [['normal', 'Normal'], ['screen', 'Screen'], ['multiply', 'Multiply']], it.blend || 'normal', 'Blend') +
+    '<p class="hint">Screen hides black, for light leaks, dust and flares. Multiply hides white.</p></div>' +
+    '<div class="field"><span class="lbl">Animation</span>' + seg('data-ova', [['fade', 'Fade'], ['pop', 'Pop'], ['none', 'None']], it.anim || 'none', 'Animation') + '</div>' +
+    clip +
+    '<div class="field"><span class="lbl">Timing</span>' +
+    '<div class="trow"><span class="tname">Starts</span><button type="button" class="btn sq" data-txt="at" data-d="-0.1" aria-label="Start earlier">−</button><output data-out="at">' + fmtS(it.at) + '</output><button type="button" class="btn sq" data-txt="at" data-d="0.1" aria-label="Start later">+</button></div>' +
+    '<div class="trow"><span class="tname">Lasts</span><button type="button" class="btn sq" data-txt="dur" data-d="-0.1" aria-label="Shorter">−</button><output data-out="dur">' + (it.dur == null ? 'to scene end' : fmtS(it.dur)) + '</output><button type="button" class="btn sq" data-txt="dur" data-d="0.1" aria-label="Longer">+</button></div>' +
+    '<div class="btns"><button type="button" class="btn" data-txt="end" aria-pressed="' + (it.dur == null) + '">Until scene ends</button>' + (vid ? '<button type="button" class="btn" data-ovwhole aria-pressed="' + (it.dur != null && Math.abs(it.dur - clipLen(m)) < 0.05) + '">Whole clip</button>' : '') + '</div>' +
+    '<p class="hint">An overlay can run on into the next scenes. It moves with its scene.</p></div>' +
+    '<div class="btns"><button type="button" class="btn" data-ovo="replace">Replace</button><button type="button" class="btn" data-txo="dup">Duplicate overlay</button><button type="button" class="btn" data-txo="del">Delete overlay</button><button type="button" class="primary" data-txo="done">Done</button></div>';
+}
+async function openOverlayFile(f) {
+  const m = isVideoFile(f) ? await loadClip(f) : { kind: 'image', img: await loadImage(f), name: f.name || 'photo', file: f };
+  m.ov = true;
+  if (m.kind === 'video') { m.useSound = false; m.endMode = 'loop'; applyLoop(m); }
+  return m;
+}
+let ovReplace = null;
+async function addOverlay(f) {
+  if (busy || aiBusy || !TL.scenes.length) return;
+  stopPlay();
+  const note = $('#photoNote');
+  let m;
+  try { m = await openOverlayFile(f); } catch (e) { note.textContent = 'That file couldn’t be opened. Try a JPG or PNG photo, or an MP4 clip.'; return; }
+  const i = sceneAt(playT), sc = TL.scenes[i];
+  let at = Math.max(0, playT - sc.start);
+  if (at > sc.dur - 0.3) at = 0;
+  remember();
+  (ovl[i] = ovl[i] || []).push({ kind: 'media', m, at: Math.round(at * 10) / 10, dur: m.kind === 'video' ? Math.round(clipLen(m) * 100) / 100 : null, x: 0.5, y: 0.5, w: 0.5, shape: 'round', border: false, op: 1, blend: 'normal', anim: 'fade' });
+  sel = i; selText = { i, k: ovl[i].length - 1 };
+  setTab('edit');
+  refresh();
+  show(sc.start + at + 0.4);
+  note.textContent = (m.kind === 'video' ? 'Clip' : 'Photo') + ' added on top. Drag it on the video to move it, and pinch it to change its size.';
+}
+async function replaceOverlay(f) {
+  const r = ovReplace; ovReplace = null;
+  const it = r && ovl[r.i] && ovl[r.i][r.k];
+  if (!it || it.kind !== 'media' || busy) return;
+  let m;
+  try { m = await openOverlayFile(f); } catch (e) { $('#photoNote').textContent = 'That file couldn’t be opened. Try a JPG or PNG photo, or an MP4 clip.'; return; }
+  remember();
+  const wasWhole = it.m.kind === 'video' && it.dur != null && Math.abs(it.dur - clipLen(it.m)) < 0.05;
+  it.m = m;
+  if (m.kind === 'video' && (wasWhole || it.dur == null)) it.dur = Math.round(clipLen(m) * 100) / 100;
+  selText = { i: r.i, k: r.k };
+  textChanged(true);
+}
+async function dupOverlay() {
+  const it = curItem();
+  if (!it || it.kind !== 'media') return;
+  const m = Object.assign(await cloneMedia(it.m), { ov: true });
+  remember();
+  ovl[selText.i].push(Object.assign({}, it, { m, x: clamp(it.x + 0.06, 0.06, 0.94), y: clamp(it.y + 0.06, 0.04, 0.96) }));
+  selText = { i: selText.i, k: ovl[selText.i].length - 1 };
+  textChanged(true);
+}
+// an overlay whose length follows its clip keeps following it when the clip is trimmed or sped up
+function ovFollow(it, before) { if (it.dur != null && Math.abs(it.dur - before) < 0.05) it.dur = Math.round(clipLen(it.m) * 100) / 100; }
 function addText() {
   if (busy || aiBusy || !TL.scenes.length) return;
   stopPlay();
@@ -2416,6 +2600,12 @@ function applyRows(list, pick, pre) {
   refresh();
   return true;
 }
+// copies of a scene's text and overlays: overlays get their own clip, so both can play at once
+async function cloneItems(list) {
+  const out = [];
+  for (const it of list || []) out.push(it.kind === 'media' ? Object.assign({}, it, { m: Object.assign(await cloneMedia(it.m), { ov: true }) }) : Object.assign({}, it));
+  return out;
+}
 async function cloneMedia(m) {
   if (!m) return null;
   if (m.kind !== 'video') return Object.assign({}, m);
@@ -2462,7 +2652,7 @@ async function sceneOp(op) {
   if (op === 'left') { if (i < 1) return; [list[i - 1], list[i]] = [list[i], list[i - 1]]; return applyRows(list, i - 1); }
   if (op === 'right') { if (i >= n - 1) return; [list[i + 1], list[i]] = [list[i], list[i + 1]]; return applyRows(list, i + 1); }
   if (op === 'del') { list.splice(i, 1); return applyRows(list, Math.min(i, list.length - 1)); }
-  if (op === 'dup') { list.splice(i + 1, 0, Object.assign({}, r, { m: await cloneMedia(r.m) })); return applyRows(list, i + 1); }
+  if (op === 'dup') { list.splice(i + 1, 0, Object.assign({}, r, { m: await cloneMedia(r.m), o: await cloneItems(r.o) })); return applyRows(list, i + 1); }
   if (op === 'split') {
     const info = splitInfo(playT);
     if (!info.ok) { $('#photoNote').textContent = info.why || 'Nothing to split here.'; return; }
@@ -2500,7 +2690,7 @@ async function addScenes(files) {
 }
 function snap() {
   const ms = new Map();
-  for (const m of media) if (m && !ms.has(m)) ms.set(m, Object.assign(m.kind === 'video' ? pickF(m, CLIPF) : {}, pickF(m, LOOKF), { _look: LOOKF.filter(k => m[k] === undefined) }));
+  for (const m of media.concat(itemMedia(ovl))) if (m && !ms.has(m)) ms.set(m, Object.assign(m.kind === 'video' ? pickF(m, CLIPF) : {}, pickF(m, LOOKF), { _look: LOOKF.filter(k => m[k] === undefined) }));
   return { script: S.script, media: media.slice(), durOv: durOv.slice(), sync: sync ? sync.map(r => ({ from: r.from, len: r.len })) : null, voice, voiceKey: voice ? voice.key : null, music, ms, sel, ovl: ovl.map(a => (a || []).map(o => Object.assign({}, o))), capY: S.capY, trans: trans.slice() };
 }
 function remember(pre) {
@@ -2745,8 +2935,8 @@ $('#clipBox').addEventListener('click', e => {
   else if (b.dataset.txt === 'at') { remember(); it.at = clamp(Math.round((it.at + +b.dataset.d) * 10) / 10, 0, Math.max(0, sc.dur - 0.2)); textChanged(true); showItem(); }
   else if (b.dataset.txt === 'dur') { remember(); const cur = it.dur == null ? itemEnd(sc, it) - it.at : it.dur; it.dur = clamp(Math.round((cur + +b.dataset.d) * 10) / 10, 0.3, MAXCLIP); textChanged(true); }
   else if (b.dataset.txt === 'end') { remember(); it.dur = it.dur == null ? Math.max(0.3, Math.round((sc.dur - it.at) * 10) / 10) : null; textChanged(true); }
-  else if (b.dataset.txo === 'dup') { remember(); const c = Object.assign({}, it, { y: clamp(it.y + 0.08, 0.04, 0.96) }); ovl[selText.i].push(c); selText = { i: selText.i, k: ovl[selText.i].length - 1 }; textChanged(true); }
-  else if (b.dataset.txo === 'del') { remember(); ovl[selText.i].splice(selText.k, 1); selText = null; textChanged(true); }
+  else if (b.dataset.txo === 'dup') { if (it.kind === 'media') { dupOverlay(); return; } remember(); const c = Object.assign({}, it, { y: clamp(it.y + 0.08, 0.04, 0.96) }); ovl[selText.i].push(c); selText = { i: selText.i, k: ovl[selText.i].length - 1 }; textChanged(true); }
+  else if (b.dataset.txo === 'del') { remember(); ovl[selText.i].splice(selText.k, 1); selText = null; textChanged(true); if (it.kind === 'media') gcMedia(); }
   else if (b.dataset.txo === 'done') { selText = null; renderTimeline(); show(playT); }
 }, true);
 $('#clipBox').addEventListener('input', e => {
@@ -2756,16 +2946,106 @@ $('#clipBox').addEventListener('input', e => {
   else if (t.dataset.tx === 'size') { editStart(); it.size = clamp(+t.value / 100, 0.03, 0.14); const o = $('#clipBox [data-out="size"]'); if (o) o.textContent = Math.round(it.size * 1000) / 10; textChanged(false); }
 }, true);
 $('#clipBox').addEventListener('change', e => { if (curItem() && e.target.dataset.tx) { LC.clear(); build(); renderStrip(); show(playT); queueSave(); } }, true);
+/* ---------- overlay events ---------- */
+$('#bAddOvl').addEventListener('click', () => { if (busy || aiBusy || !TL.scenes.length) return; ovReplace = null; setTab('edit'); $('#fOvl').click(); });
+$('#fOvl').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (f) await (ovReplace ? replaceOverlay(f) : addOverlay(f)); else ovReplace = null;
+});
+$('#tlOvIn').addEventListener('click', e => {
+  const b = e.target.closest('.tlt');
+  if (!b || busy) return;
+  stopPlay(); setTab('edit');
+  selText = { i: +b.dataset.i, k: +b.dataset.k }; sel = selText.i;
+  renderTimeline(); showItem();
+});
+$('#clipBox').addEventListener('click', async e => {
+  const b = e.target.closest('button'), it = curItem();
+  if (!b || !it || it.kind !== 'media' || busy || b.disabled) return;
+  const m = it.m, sc = TL.scenes[selText.i], F = FORMATS[S.format];
+  const hOf = () => ovSize(it, F.w, F.h).h / F.h;
+  if (b.dataset.ovp) {
+    remember();
+    const p = b.dataset.ovp;
+    if (p === 'fill') Object.assign(it, { x: 0.5, y: 0.5, w: fillW(it), shape: it.shape === 'circle' ? 'rect' : it.shape, border: false });
+    else if (p === 'mid') Object.assign(it, { x: 0.5, y: 0.5, w: Math.min(it.w, 1) });
+    else {
+      if (it.w > 0.6) it.w = 0.42;
+      const hw = it.w / 2, hh = hOf() / 2, mx = 0.05, my = 0.06;
+      it.x = p === 'tl' ? mx + hw : 1 - mx - hw;
+      it.y = p === 'br' ? 1 - my - hh - 0.12 : my + hh + 0.05;
+    }
+    textChanged(true);
+  }
+  else if (b.dataset.ovs) { remember(); it.shape = b.dataset.ovs; textChanged(true); }
+  else if (b.dataset.ovb) { remember(); it.border = b.dataset.ovb === 'on'; textChanged(true); }
+  else if (b.dataset.ovm) { remember(); it.blend = b.dataset.ovm; textChanged(true); }
+  else if (b.dataset.ova) { remember(); it.anim = b.dataset.ova; textChanged(true); show(sc.start + it.at + 0.02); }
+  else if (b.dataset.ovt && m.kind === 'video') { remember(); const before = clipLen(m); setTrim(m, b.dataset.ovt, (b.dataset.ovt === 'in' ? m.in : m.out) + +b.dataset.d); ovFollow(it, before); textChanged(true); }
+  else if (b.dataset.ovsp && m.kind === 'video') { remember(); const before = clipLen(m); m.speed = +b.dataset.ovsp; ovFollow(it, before); textChanged(true); }
+  else if (b.hasAttribute('data-ovwhole') && m.kind === 'video') { remember(); it.dur = Math.round(clipLen(m) * 100) / 100; textChanged(true); }
+  else if (b.dataset.ovsnd && m.kind === 'video') {
+    const on = b.dataset.ovsnd === 'on';
+    if (on === !!m.useSound) return;
+    remember();
+    if (!on) { m.useSound = false; textChanged(true); return; }
+    b.textContent = 'Reading sound…';
+    await ensureClipAudio(m);
+    m.useSound = !!m.audio;
+    if (!m.audio) $('#photoNote').textContent = 'That clip has no sound this browser can read.';
+    textChanged(true);
+  }
+  else if (b.dataset.ovo === 'replace') { ovReplace = { i: selText.i, k: selText.k }; $('#fOvl').click(); }
+}, true);
+$('#clipBox').addEventListener('input', e => {
+  const t = e.target, it = curItem();
+  if (!it || it.kind !== 'media' || busy) return;
+  const out = (k, v) => { const o = $('#clipBox [data-out="' + k + '"]'); if (o) o.textContent = v; };
+  if (t.hasAttribute('data-ovw')) { editStart(); it.w = clamp(+t.value / 100, 0.1, 6); out('ovw', Math.round(it.w * 100) + '%'); show(playT); }
+  else if (t.hasAttribute('data-ovop')) { editStart(); it.op = clamp(+t.value / 100, 0.1, 1); out('ovop', Math.round(it.op * 100) + '%'); show(playT); }
+  else if (t.hasAttribute('data-ovvol')) { editStart(); it.m.vol = clamp(+t.value / 100, 0, 2); out('ovvol', Math.round(it.m.vol * 100) + '%'); queueSave(); }
+  else if (t.dataset.ovt && it.m.kind === 'video') {
+    editStart();
+    const before = clipLen(it.m), k = t.dataset.ovt, sc = TL.scenes[selText.i];
+    setTrim(it.m, k, +t.value); ovFollow(it, before);
+    out('ov' + k, fmtS(k === 'in' ? it.m.in : it.m.out));
+    LC.clear(); build();
+    if (sc) show(sc.start + it.at + (k === 'in' ? 0.02 : Math.max(0.02, itemEnd(sc, it) - it.at - 0.06)));
+  }
+}, true);
+$('#clipBox').addEventListener('change', e => {
+  const it = curItem(), t = e.target;
+  if (it && it.kind === 'media' && (t.hasAttribute('data-ovw') || t.hasAttribute('data-ovop') || t.hasAttribute('data-ovvol') || t.dataset.ovt)) textChanged(true);
+}, true);
 // drag text and captions on the preview
 let drag = null;
 function cvPoint(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height }; }
 function hitAt(pt) {
-  for (let k = HITS.length - 1; k >= 0; k--) { const h = HITS[k]; if (pt.x >= h.x0 && pt.x <= h.x1 && pt.y >= h.y0 && pt.y <= h.y1) return h; }
+  const inBox = h => pt.x >= h.x0 && pt.x <= h.x1 && pt.y >= h.y0 && pt.y <= h.y1;
+  // the selected text or overlay comes first, even where captions or other things lie on top of it
+  if (selText) { const h = HITS.find(x => x.kind === 'text' && x.i === selText.i && x.k === selText.k && inBox(x)); if (h) return h; }
+  for (let k = HITS.length - 1; k >= 0; k--) if (inBox(HITS[k])) return HITS[k];
   return null;
 }
-cv.addEventListener('touchstart', e => { const t = e.touches[0], h = !busy && t && e.touches.length === 1 ? hitAt(cvPoint(t)) : null; if (h && (h.kind === 'text' || selCap)) e.preventDefault(); }, { passive: false });
+cv.addEventListener('touchstart', e => { const t = e.touches[0], h = !busy && t && e.touches.length === 1 ? hitAt(cvPoint(t)) : null; if ((h && (h.kind === 'text' || selCap)) || (e.touches.length === 2 && drag && drag.h.kind === 'text')) e.preventDefault(); }, { passive: false });
+const pts = new Map();
+let pinch = null;
 cv.addEventListener('pointerdown', e => {
   if (busy || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  pts.set(e.pointerId, cvPoint(e));
+  // a second finger on the video while holding a text or overlay: pinch to change its size
+  if (drag && drag.h.kind === 'text' && pts.size === 2 && !pinch) {
+    const it = ovl[drag.h.i] && ovl[drag.h.i][drag.h.k];
+    if (it) {
+      const [p1, p2] = Array.from(pts.values());
+      if (!drag.moved) { remember(); drag.moved = true; }
+      pinch = { d0: Math.max(4, Math.hypot(p1.x - p2.x, p1.y - p2.y)), v0: it.kind === 'media' ? it.w : it.size, it };
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+      e.preventDefault();
+      return;
+    }
+  }
   const pt = cvPoint(e), h = hitAt(pt);
   if (!h) { if (selText || selCap) { selText = null; selCap = false; renderTimeline(); show(playT); } return; }
   if (h.kind === 'cap' && !selCap) { selCap = true; if (selText) { selText = null; renderTimeline(); } show(playT); $('#photoNote').textContent = 'Captions selected. Drag them up or down on the video.'; return; }
@@ -2783,6 +3063,15 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch (err) {}
 });
 cv.addEventListener('pointermove', e => {
+  if (pts.has(e.pointerId)) pts.set(e.pointerId, cvPoint(e));
+  if (pinch) {
+    const [p1, p2] = Array.from(pts.values());
+    if (!p1 || !p2) return;
+    const k = Math.hypot(p1.x - p2.x, p1.y - p2.y) / pinch.d0, it = pinch.it;
+    if (it.kind === 'media') it.w = clamp(pinch.v0 * k, 0.1, Math.max(1.2, fillW(it))); else it.size = clamp(pinch.v0 * k, 0.03, 0.14);
+    show(playT);
+    return;
+  }
   if (!drag || e.pointerId !== drag.id) return;
   const pt = cvPoint(e);
   if (!drag.moved && Math.hypot(pt.x - drag.x0, pt.y - drag.y0) < cv.width / 90) return;
@@ -2805,8 +3094,13 @@ function endDrag(e) {
   if (kind === 'cap') { save(); renderChips(); }
   textChanged(true);
 }
-cv.addEventListener('pointerup', endDrag);
-cv.addEventListener('pointercancel', endDrag);
+function ptrUp(e) {
+  pts.delete(e.pointerId);
+  if (pinch) { pinch = null; drag = null; textChanged(true); return; }
+  endDrag(e);
+}
+cv.addEventListener('pointerup', ptrUp);
+cv.addEventListener('pointercancel', ptrUp);
 
 /* ---------- sound events ---------- */
 $('#bRec').addEventListener('click', () => { getCtx(); openRec(); });
@@ -2939,6 +3233,6 @@ function useNormalDownloads() {
 if (hasClaude()) useClaudeSaving();
 else setTimeout(() => { if (hasClaude()) useClaudeSaving(); else useNormalDownloads(); }, 1200);
 window.__stvVoice = () => ({ threads: vwThreads, saidLines: said.size, warm: warmAsked, coi: !!window.crossOriginIsolated, audio: actx ? actx.state : null, voice: voice ? +voice.dur.toFixed(2) : null, voiceRate: voice ? voice.buffer.sampleRate : null, lost: { voice: !!lost.voice, music: !!lost.music, objs: lost.objs.length }, nodes: nodes.length, playing, hint: $('#mlabel').textContent, ctx: () => actx });
-window.__stv = { exportNow: startExport, out: () => lastOut, dbg: () => ({ trans, look: media.map(m => m ? Object.assign({ kind: m.kind }, pickF(m, LOOKF)) : null), drag: drag ? { kind: drag.h.kind, moved: drag.moved } : null, playT, sel, undo: UNDO.length, redo: REDO.length, script: S.script, sync, ovl, capY: S.capY, selText, selCap, cv: [cv.width, cv.height], hits: HITS.map(h => ({ kind: h.kind, i: h.i, k: h.k, x0: Math.round(h.x0), y0: Math.round(h.y0), x1: Math.round(h.x1), y1: Math.round(h.y1) })), media: media.map(m => m && m.kind === 'video' ? { in: m.in, out: m.out, speed: m.speed, vol: m.vol, dur: m.dur, name: m.name } : m ? 'image' : null) }), state: () => ({ S, total: TL.total, scenes: TL.scenes.map(s => ({ kind: s.kind, text: s.text, start: s.start, dur: s.dur })) }),
+window.__stv = { exportNow: startExport, out: () => lastOut, dbg: () => ({ ovls: (TL.mi || []).map(e => ({ i: e.i, k: e.k, a: +e.a.toFixed(2), b: +e.b.toFixed(2), kind: e.it.m.kind, w: +e.it.w.toFixed(3), x: +e.it.x.toFixed(3), y: +e.it.y.toFixed(3), shape: e.it.shape, blend: e.it.blend, sound: !!e.it.m.useSound, audio: !!e.it.m.audio, op: e.it.op, border: !!e.it.border, anim: e.it.anim, at: e.it.at, dur: e.it.dur, url: e.it.m.url || null, playing: e.it.m.el ? !e.it.m.el.paused : null, ct: e.it.m.el ? +e.it.m.el.currentTime.toFixed(2) : null })), trans, look: media.map(m => m ? Object.assign({ kind: m.kind }, pickF(m, LOOKF)) : null), drag: drag ? { kind: drag.h.kind, moved: drag.moved } : null, playT, sel, undo: UNDO.length, redo: REDO.length, script: S.script, sync, ovl, capY: S.capY, selText, selCap, cv: [cv.width, cv.height], hits: HITS.map(h => ({ kind: h.kind, i: h.i, k: h.k, x0: Math.round(h.x0), y0: Math.round(h.y0), x1: Math.round(h.x1), y1: Math.round(h.y1) })), media: media.map(m => m && m.kind === 'video' ? { in: m.in, out: m.out, speed: m.speed, vol: m.vol, dur: m.dur, name: m.name } : m ? 'image' : null) }), state: () => ({ S, total: TL.total, scenes: TL.scenes.map(s => ({ kind: s.kind, text: s.text, start: s.start, dur: s.dur })) }),
   set: o => { if (o.look && !('font' in o)) o = Object.assign({ font: LOOKS[o.look].font, upper: LOOKS[o.look].upper }, o); Object.assign(S, o); changed(); }, frame: (t, W, H) => { const c = document.createElement('canvas'); c.width = W; c.height = H; drawFrame(c.getContext('2d'), W, H, t); return c.toDataURL('image/jpeg', 0.9); } };
 }
