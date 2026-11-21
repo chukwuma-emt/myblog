@@ -63,6 +63,8 @@ input[type=range]{accent-color:var(--rec);height:44px;margin:0;width:100%;backgr
 .seg{display:flex;flex-wrap:wrap;gap:6px}
 .seg button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:600 15px/1 Archivo,system-ui,sans-serif;cursor:pointer}
 .seg button[aria-checked=true]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.seg .vgrp{flex-basis:100%;margin:6px 0 -1px;font:600 13px/1.3 Archivo,system-ui,sans-serif;color:var(--muted)}
+.seg .vgrp:first-child{margin-top:0}
 :focus-visible{outline:3px solid var(--rec);outline-offset:2px}
 .job,.result{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
 .jobtop{display:flex;align-items:center;gap:12px;justify-content:space-between}
@@ -334,7 +336,7 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
   </div>
  </section>
 </main>
-<footer class="foot"><p>Everything is made on your phone. Your script, clips, photos and sound stay in this browser and are never uploaded.</p><details class="credits"><summary>Credits</summary><p>Encoding uses <a href="https://github.com/Vanilagy/mediabunny">Mediabunny</a> (MPL-2.0) and, where the browser has no AAC encoder of its own, <a href="https://ffmpeg.org/">FFmpeg</a>’s AAC encoder (LGPL-2.1). AI voices use <a href="https://github.com/hexgrad/kokoro">Kokoro-82M</a> (Apache-2.0) with <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> (MIT) and <a href="https://github.com/espeak-ng/espeak-ng">eSpeak NG</a> pronunciation (GPL-3.0). These load only when you use them.</p></details><p class="ver" id="ver"></p></footer>
+<footer class="foot"><p>Everything is made on your phone. Your script, clips, photos and sound stay in this browser and are never uploaded.</p><details class="credits"><summary>Credits</summary><p>Encoding uses <a href="https://github.com/Vanilagy/mediabunny">Mediabunny</a> (MPL-2.0) and, where the browser has no AAC encoder of its own, <a href="https://ffmpeg.org/">FFmpeg</a>’s AAC encoder (LGPL-2.1). AI voices use <a href="https://github.com/hexgrad/kokoro">Kokoro-82M</a> (Apache-2.0) with <a href="https://github.com/microsoft/onnxruntime">ONNX Runtime Web</a> (MIT) and <a href="https://github.com/espeak-ng/espeak-ng">eSpeak NG</a> pronunciation (GPL-3.0). Natural voices use Kyutai’s <a href="https://github.com/kyutai-labs/pocket-tts">Pocket TTS</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>) through <a href="https://github.com/thewh1teagle/pocket-tts-onnx">pocket-tts-onnx</a> (CC BY 4.0), with weights stored at half size for download. Their voices come from recordings by Alba McKenna and the <a href="https://datashare.ed.ac.uk/handle/10283/3443">VCTK corpus</a> (CC BY 4.0) and from Kyutai’s voice donations (CC0). These load only when you use them.</p></details><p class="ver" id="ver"></p></footer>
 
 <div class="dlg" id="syncDlg" hidden>
  <div class="card" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
@@ -369,6 +371,6 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 
-<script src="stv.js?v=2.9"></script>
+<script src="stv.js?v=2.10"></script>
 </body>
 </html>

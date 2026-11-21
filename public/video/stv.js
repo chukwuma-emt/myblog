@@ -49,7 +49,7 @@ const OPTS = {
   pos: [['middle', 'Middle'], ['lower', 'Lower']],
   trans: [['fade', 'Fade'], ['slide', 'Slide'], ['zoom', 'Zoom'], ['dip', 'Dip to black'], ['wipe', 'Wipe'], ['cut', 'Cut']],
   quality: [['720', '720p'], ['1080', '1080p']],
-  aiVoice: [['af_heart', 'Heart · US woman'], ['af_bella', 'Bella · US woman'], ['am_michael', 'Michael · US man'], ['am_fenrir', 'Fenrir · US man'], ['bf_emma', 'Emma · UK woman'], ['bm_george', 'George · UK man']]
+  aiVoice: [['pk_alba', 'Alba · woman', 'natural'], ['pk_anna', 'Anna · woman', 'natural'], ['pk_michael', 'Michael · man', 'natural'], ['pk_marius', 'Marius · man', 'natural'], ['pk_javert', 'Javert · deep man', 'natural'], ['af_heart', 'Heart · US woman'], ['af_bella', 'Bella · US woman'], ['am_michael', 'Michael · US man'], ['am_fenrir', 'Fenrir · US man'], ['bf_emma', 'Emma · UK woman'], ['bm_george', 'George · UK man']]
 };
 const SAMPLE = [
   '# 3 habits that changed my mornings', '',
@@ -92,7 +92,7 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 
 let S = load();
 let media = [], durOv = [], sync = null, voice = null, music = null, ovl = [], selText = null, trans = [], selAud = null;
-const VERSION = '2.9';
+const VERSION = '2.10';
 const MAXCLIP = 600; // longest a single clip can make its scene, in seconds
 const transOf = i => (i > 0 && (trans[i] || S.trans)) || 'cut';
 const transDur = tr => tr === 'cut' ? 0 : tr === 'fade' ? TR : 0.5;
@@ -1096,6 +1096,12 @@ function renderChips() {
       g.innerHTML = Object.keys(THEMES).map(v => { const t = THEMES[v]; return '<button type="button" class="sw" role="radio" aria-checked="' + (S.theme === v) + '" aria-label="' + t.name + '" title="' + t.name + '" data-v="' + v + '" style="--g:linear-gradient(135deg,' + t.b1 + ',' + t.bg + ' 55%,' + t.b2 + ');--a:' + t.accent + '"><i></i></button>'; }).join('');
       return;
     }
+    if (key === 'aiVoice') {
+      const chip = o => '<button type="button" role="radio" aria-checked="' + (S.aiVoice === o[0]) + '" data-v="' + o[0] + '">' + o[1] + '</button>';
+      g.innerHTML = '<span class="vgrp">Most natural · new</span>' + OPTS.aiVoice.filter(o => o[2]).map(chip).join('') +
+        '<span class="vgrp">Quick</span>' + OPTS.aiVoice.filter(o => !o[2]).map(chip).join('');
+      return;
+    }
     g.innerHTML = OPTS[key].map(o => '<button type="button" role="radio" aria-checked="' + (String(S[key]) === o[0] && !(key === 'pos' && S.capY != null)) + '" data-v="' + o[0] + '"' + (key === 'font' ? ' style="font-family:' + FONTS[o[0]].fam + '"' : '') + '>' + o[1] + '</button>').join('');
   });
   $('#lookHint').textContent = LOOKS[S.look].hint;
@@ -1313,11 +1319,16 @@ async function mixAudio(total) {
   return await oc.startRendering();
 }
 
-/* ---------- AI voiceover (Kokoro, runs on this device) ---------- */
+/* ---------- AI voiceover, made on this device: quick voices (Kokoro) and natural voices (Pocket TTS) ---------- */
 const VOICE_NAMES = {};
 OPTS.aiVoice.forEach(o => { VOICE_NAMES[o[0]] = o[1].split(' · ')[0]; });
+const isNatural = id => String(id).startsWith('pk_');
+const engineOf = id => isNatural(id) ? 'pocket' : 'kokoro';
+const vName = id => (VOICE_NAMES[id] || 'AI') + (isNatural(id) ? ' (natural)' : '');
 const VSR = 24000;
-let VW = null, vwReady = null, vwRes = null, vwRej = null, vwOnProgress = null, vwSeq = 0, aiBusy = false, aiStop = false, aiSample = null, vwThreads = 0, warmAsked = false;
+let VW = null, vwOnProgress = null, vwSeq = 0, aiBusy = false, aiStop = false, aiSample = null, vwThreads = 0, vwEngine = null, warmAsked = false;
+// the worker holds one voice model at a time; each has its own start
+const vwReady = { kokoro: null, pocket: null }, vwWait = {}, warmed = {};
 const vwPending = new Map();
 // If the engine can't start on several cores on this phone, it starts again on one.
 let vwMax = 0, vwStart = null, vwTrying = 0;
@@ -1325,7 +1336,8 @@ function engineOneCore(why) {
   console.warn('[script-to-video] voice engine: several cores didn’t start (' + why + '), using one');
   vwMax = 1; vwTrying = 0;
   try { VW.terminate(); } catch (x) {}
-  VW = null;
+  VW = null; vwEngine = null;
+  for (const k in vwReady) if (!vwWait[k]) vwReady[k] = null;
   voiceWorker().postMessage(Object.assign({}, vwStart, { maxThreads: 1 }));
 }
 function voiceWorker() {
@@ -1334,54 +1346,72 @@ function voiceWorker() {
   VW = new Worker('lib/voice/worker.js?v=' + VERSION, { type: 'module' });
   VW.onmessage = e => {
     const m = e.data;
-    if (m.type === 'progress') { if (vwOnProgress) vwOnProgress(m.loaded, m.total); }
-    else if (m.type === 'status') { vwTrying = m.threads || 1; if (aiBusy) aiNoteSet('Starting the voice engine…'); if (vwRej) engineStarting(); }
-    else if (m.type === 'ready') { vwThreads = m.threads || 1; if (vwRes) vwRes(); }
+    if (m.type === 'progress') { if (vwOnProgress && aiBusy) vwOnProgress(m.loaded, m.total, m.net !== false); }
+    else if (m.type === 'status') { vwTrying = m.threads || 1; if (aiBusy) aiNoteSet(m.engine === 'pocket' ? 'Starting the natural voices…' : 'Starting the voice engine…'); if (vwWait[m.engine]) engineStarting(); }
+    else if (m.type === 'ready') {
+      vwThreads = m.threads || 1; vwEngine = m.engine;
+      // the other model was freed to make room for this one
+      for (const k in vwReady) if (k !== m.engine && !vwWait[k]) { vwReady[k] = null; warmed[k] = false; }
+      if (vwWait[m.engine]) vwWait[m.engine].res();
+    }
     else if (m.type === 'audio') { const p = vwPending.get(m.id); vwPending.delete(m.id); if (p) p.res(m.audio); }
+    else if (m.type === 'natural-text') { const p = vwPending.get(m.id); vwPending.delete(m.id); if (p) p.res(m.text); }
     else if (m.type === 'error') {
       if (m.start && m.threads > 1 && !vwMax && vwStart) return engineOneCore(m.message);
       if (m.id != null && vwPending.has(m.id)) { const p = vwPending.get(m.id); vwPending.delete(m.id); p.rej(new Error(m.message)); }
-      else if (vwRej) vwRej(new Error(m.message));
+      else if (vwWait[m.engine]) vwWait[m.engine].rej(new Error(m.message));
       else console.warn('[script-to-video] voice engine warm-up:', m.message);
     }
   };
   VW.onerror = e => {
     if (!vwThreads && !vwMax && vwStart && window.crossOriginIsolated) { if (e && e.preventDefault) e.preventDefault(); return engineOneCore((e && e.message) || 'stopped'); }
     const err = new Error((e && e.message) || 'The voice engine stopped.');
-    if (vwRej) vwRej(err);
+    Object.values(vwWait).forEach(w => w.rej(err));
     vwPending.forEach(p => p.rej(err)); vwPending.clear();
     try { VW.terminate(); } catch (x) {}
-    VW = null; vwReady = null;
+    VW = null; vwEngine = null;
+    for (const k in vwReady) vwReady[k] = null;
   };
   return VW;
 }
 let vwTimer = 0;
-function engineReady(onProgress) {
+function engineReady(engine, onProgress) {
   vwOnProgress = onProgress;
-  if (!vwReady) {
-    vwReady = new Promise((res, rej) => {
-      vwRes = () => { clearTimeout(vwTimer); res(); };
-      vwRej = e => { clearTimeout(vwTimer); rej(e); };
-      vwStart = { type: 'init', maxThreads: vwMax || undefined };
+  if (!vwReady[engine]) {
+    vwReady[engine] = new Promise((res, rej) => {
+      vwWait[engine] = {
+        res: () => { clearTimeout(vwTimer); delete vwWait[engine]; res(); },
+        rej: e => { clearTimeout(vwTimer); delete vwWait[engine]; rej(e); }
+      };
+      vwStart = { type: 'init', engine, maxThreads: vwMax || undefined };
       voiceWorker().postMessage(vwStart);
-    }).catch(e => { vwReady = null; if (VW) { try { VW.terminate(); } catch (x) {} VW = null; } throw e; });
+    }).catch(e => {
+      vwReady[engine] = null;
+      if (VW) { try { VW.terminate(); } catch (x) {} VW = null; vwEngine = null; for (const k in vwReady) vwReady[k] = null; }
+      throw e;
+    });
   }
-  return vwReady;
+  return vwReady[engine];
 }
-// Once the engine has been downloaded, start it in the background when the Sound tab opens,
-// so Make voiceover can begin straight away. Nothing is downloaded here.
+// Once a voice model has been downloaded, start it in the background when the Sound tab opens
+// (or a voice of the other kind is picked), so Make voiceover can begin straight away. Nothing is downloaded here.
 function engineWarm() {
-  if (warmAsked || vwReady || aiBusy) return;
+  const engine = engineOf(S.aiVoice);
+  if (warmed[engine] || vwReady[engine] || vwEngine === engine || aiBusy) return;
   if (navigator.deviceMemory && navigator.deviceMemory < 3) return; // low-memory phones start it only when asked
-  warmAsked = true;
-  vwStart = { type: 'warm', maxThreads: vwMax || undefined };
+  warmed[engine] = true; warmAsked = true;
+  vwStart = { type: 'warm', engine, maxThreads: vwMax || undefined };
   try { voiceWorker().postMessage(vwStart); } catch (e) {}
 }
 function engineStarting() {
   clearTimeout(vwTimer);
   // a start on several cores that hangs gets one more try on one core
   const many = vwTrying > 1 && !vwMax;
-  vwTimer = setTimeout(() => { if (!vwRej) return; if (many && vwStart) engineOneCore('took too long'); else vwRej(new Error('start timeout')); }, many ? 60000 : 120000);
+  vwTimer = setTimeout(() => {
+    const w = vwStart && vwWait[vwStart.engine];
+    if (!w) return;
+    if (many) engineOneCore('took too long'); else w.rej(new Error('start timeout'));
+  }, many ? 60000 : 120000);
 }
 function aiFail(e) {
   const m = String((e && e.message) || e || '');
@@ -1423,7 +1453,9 @@ function aiDefaultNote() {
   if (voice && voice.made && voice.key !== scriptKey()) return 'You changed the script after making this voice. Make the voiceover again so they match.';
   if (voice && voice.rec) return 'Using your own recorded voice. Make an AI voiceover to replace it.';
   if (voice && voice.made) return 'Voiceover ready in ' + voice.voiceName + '. Tap Play from start to hear the whole script with your video.';
-  return 'Free voices made on this phone from your script. The first time, it downloads the voice engine (about 110 MB) once. After that it starts in seconds.' +
+  return (isNatural(S.aiVoice)
+    ? 'Natural voices sound the most like a real person. The first time, they download about 130 MB once. After that they start in seconds.'
+    : 'Free voices made on this phone from your script. The first time, it downloads the voice engine (about 110 MB) once. After that it starts in seconds.') +
     (slowVoiceHint ? ' Voices are being made on one processor core. Restart the site (in VPS Control Center, deploy Blog again) to use several and make them faster.' : '');
 }
 function setAiBusy(b, label) {
@@ -1435,11 +1467,14 @@ function setAiBusy(b, label) {
   $('#go').disabled = b || busy || !TL.total;
   if (!b) aiBarSet(null);
 }
-async function ensureEngine() {
-  aiNoteSet('Getting the voice engine ready…'); aiBarSet(0);
-  await engineReady((loaded, total) => {
+async function ensureEngine(engine) {
+  const nat = engine === 'pocket';
+  aiNoteSet(nat ? 'Getting the natural voices ready…' : 'Getting the voice engine ready…'); aiBarSet(0);
+  await engineReady(engine, (loaded, total, net) => {
     aiBarSet(loaded / total);
-    aiNoteSet('Downloading the voice engine: ' + Math.round(loaded / 1e6) + ' of ' + Math.round(total / 1e6) + ' MB. This happens only once.');
+    // read back from this phone's copy: no download to talk about
+    if (!net) return;
+    aiNoteSet((nat ? 'Downloading the natural voices: ' : 'Downloading the voice engine: ') + Math.round(loaded / 1e6) + ' of ' + Math.round(total / 1e6) + ' MB. This happens only once.');
   });
 }
 const silence = s => new Float32Array(Math.round(VSR * s));
@@ -1454,7 +1489,7 @@ async function hearVoice() {
   const ctx = liveCtx();
   stopPlay(); stopSample(); setAiBusy(true, 'hear');
   try {
-    await ensureEngine();
+    await ensureEngine(engineOf(S.aiVoice));
     aiNoteSet('Making a short sample…'); aiBarSet(null);
     const first = (TL.scenes.length && sentences(TL.scenes.find(s => s.kind === 'text') ? TL.scenes.find(s => s.kind === 'text').text : TL.scenes[0].text)[0]) || 'Hello! This is how I sound.';
     const a = await speakLine(first.slice(0, 220), S.aiVoice, S.aiSpeed);
@@ -1498,7 +1533,7 @@ async function makeVoice() {
   const scenes = TL.scenes.map(s => ({ kind: s.kind, text: s.text })), key = scriptKey(), vId = S.aiVoice, speed = S.aiSpeed;
   let msg = null;
   try {
-    await ensureEngine();
+    await ensureEngine(engineOf(vId));
     const pieces = [], n = scenes.length;
     // progress counts characters still to be voiced, so lines reused from before don't skew it
     const todo = [].concat(...scenes.map(s => sentences(s.text))).filter(t => !said.has(saidKey(t, vId, speed)));
@@ -1528,11 +1563,11 @@ async function makeVoice() {
     const all = await polish(joinF32(pieces.concat([silence(0.3)])), VSR);
     const buf = ctx.createBuffer(1, all.length, VSR); buf.copyToChannel(all, 0);
     remember();
-    voice = { buffer: buf, dur: buf.duration, name: VOICE_NAMES[vId] + ' (AI voice)', made: true, key, voiceName: VOICE_NAMES[vId] };
+    voice = { buffer: buf, dur: buf.duration, name: VOICE_NAMES[vId] + (isNatural(vId) ? ' (natural AI voice)' : ' (AI voice)'), made: true, key, voiceName: vName(vId) };
     const old = sync && sync.length === starts.length ? sync : null; // lines you moved stay moved
     sync = starts.map((s, i) => ({ from: s, len: (i + 1 < starts.length ? starts[i + 1] : buf.duration) - s, sh: old ? old[i].sh || 0 : 0 })); durOv = [];
     refresh();
-    msg = 'Voiceover ready in ' + VOICE_NAMES[vId] + '. Playing it with your video from the start.';
+    msg = 'Voiceover ready in ' + vName(vId) + '. Playing it with your video from the start.';
     playFromStart();
   } catch (e) {
     msg = aiStop ? 'Stopped. Nothing was changed.' : aiFail(e);
@@ -1551,7 +1586,7 @@ async function saveVoice() {
     const out = new M.Output({ format: new M.Mp4OutputFormat({ fastStart: 'in-memory' }), target: new M.BufferTarget() });
     const as = new M.AudioBufferSource({ codec: 'aac', quality: new M.Quality({ bitrate: 128000 }) });
     out.addAudioTrack(as); await out.start(); await as.add(mixed); as.close(); await out.finalize();
-    const name = 'voiceover-' + voice.voiceName.toLowerCase() + '-' + fileName('mp4');
+    const name = 'voiceover-' + voice.voiceName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '-' + fileName('mp4');
     const r = await DL.save({ filename: name, data: new Blob([out.target.buffer], { type: 'video/mp4' }) });
     aiNoteSet(r && r.status === 'delivered' ? 'Sent.' : 'Saved as an audio file (.mp4). Video editors like CapCut can import it.');
   } catch (e) {
@@ -2917,17 +2952,18 @@ $('#bHear').addEventListener('click', hearVoice);
 $('#bStop').addEventListener('click', () => { if (aiBusy) { aiStop = true; aiNoteSet('Stopping…'); } });
 $('#bPlayVoice').addEventListener('click', playFromStart);
 $('#bSaveVoice').addEventListener('click', saveVoice);
-$('#aiSpeed').addEventListener('input', e => { S.aiSpeed = clamp(+e.target.value, 0.8, 1.2); $('#aiSpeedVal').textContent = S.aiSpeed.toFixed(2).replace(/0$/, '') + '×'; save(); });
+$('#aiSpeed').addEventListener('input', e => { S.aiSpeed = clamp(+e.target.value, 0.8, 1.2); $('#aiSpeedVal').textContent = S.aiSpeed.toFixed(2).replace(/0$/, '') + '×'; save(); queueSave(); });
 $('#bMusicX').addEventListener('click', () => { remember(); music = null; lost.music = null; refresh(); });
 $('#bSync').addEventListener('click', () => { getCtx(); openSync(); });
 $('#syncBtn').addEventListener('click', syncTap);
 $('#syncCancel').addEventListener('click', closeSync);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && SY) { e.preventDefault(); closeSync(); } });
-$('#vol').addEventListener('input', e => { S.musicVol = clamp(e.target.value / 100, 0, 1); $('#volVal').textContent = Math.round(S.musicVol * 100) + '%'; stopPlay(); save(); });
+$('#vol').addEventListener('input', e => { S.musicVol = clamp(e.target.value / 100, 0, 1); $('#volVal').textContent = Math.round(S.musicVol * 100) + '%'; stopPlay(); save(); queueSave(); });
 $('#pace').addEventListener('input', e => { S.wpm = +e.target.value; $('#paceVal').textContent = S.wpm + ' words a minute'; clearTimeout(typing); typing = setTimeout(refresh, 120); });
 $('#tUpper').addEventListener('change', e => { S.upper = e.target.checked; changed(); });
-$('#tProg').addEventListener('change', e => { S.progress = e.target.checked; save(); show(playT); });
-$('#handle').addEventListener('input', e => { S.handle = e.target.value; save(); show(playT); });
+$('#tProg').addEventListener('change', e => { S.progress = e.target.checked; save(); queueSave(); show(playT); });
+$('#handle').addEventListener('input', e => { S.handle = e.target.value; save(); queueSave(); show(playT); });
+let warmT = 0;
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-key] [data-v]');
   if (!b || busy) return;
@@ -2937,7 +2973,8 @@ document.addEventListener('click', e => {
   if (key === 'aiVoice' && aiBusy) return;
   S[key] = v;
   if (key === 'look') { S.font = LOOKS[v].font; S.upper = LOOKS[v].upper; }
-  if (key === 'quality' || key === 'aiVoice') { renderChips(); save(); return; }
+  if (key === 'aiVoice') { renderChips(); save(); queueSave(); if (!aiBusy) aiNoteSet(aiDefaultNote()); clearTimeout(warmT); warmT = setTimeout(engineWarm, 1200); return; }
+  if (key === 'quality') { renderChips(); save(); return; }
   changed();
 });
 
@@ -3355,8 +3392,8 @@ $('#recFrom').addEventListener('click', e => {
   recShow();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && REC && REC.state !== 'processing') { e.preventDefault(); closeRec(); } });
-$('#vvol').addEventListener('input', e => { S.voiceVol = clamp(+e.target.value / 100, 0, 2); $('#vvVal').textContent = Math.round(S.voiceVol * 100) + '%'; save(); });
-$('#tDuck').addEventListener('change', e => { S.duck = e.target.checked; save(); });
+$('#vvol').addEventListener('input', e => { S.voiceVol = clamp(+e.target.value / 100, 0, 2); $('#vvVal').textContent = Math.round(S.voiceVol * 100) + '%'; save(); queueSave(); });
+$('#tDuck').addEventListener('change', e => { S.duck = e.target.checked; save(); queueSave(); });
 
 /* ---------- look events ---------- */
 $('#clipBox').addEventListener('click', e => {
@@ -3483,7 +3520,9 @@ function useNormalDownloads() {
 }
 if (hasClaude()) useClaudeSaving();
 else setTimeout(() => { if (hasClaude()) useClaudeSaving(); else useNormalDownloads(); }, 1200);
-window.__stvVoice = () => ({ threads: vwThreads, saidLines: said.size, warm: warmAsked, coi: !!window.crossOriginIsolated, audio: actx ? actx.state : null, voice: voice ? +voice.dur.toFixed(2) : null, voiceRate: voice ? voice.buffer.sampleRate : null, lost: { voice: !!lost.voice, music: !!lost.music, objs: lost.objs.length }, nodes: nodes.length, playing, hint: $('#mlabel').textContent, ctx: () => actx });
+// for checks: the text the natural voices actually read for a line
+window.__stvNatText = t => new Promise((res, rej) => { const id = ++vwSeq; vwPending.set(id, { res, rej }); voiceWorker().postMessage({ type: 'natural-text', id, text: t }); });
+window.__stvVoice = () => ({ threads: vwThreads, engine: vwEngine, saidLines: said.size, warm: warmAsked, coi: !!window.crossOriginIsolated, audio: actx ? actx.state : null, voice: voice ? +voice.dur.toFixed(2) : null, voiceRate: voice ? voice.buffer.sampleRate : null, lost: { voice: !!lost.voice, music: !!lost.music, objs: lost.objs.length }, nodes: nodes.length, playing, hint: $('#mlabel').textContent, ctx: () => actx });
 window.__stv = { exportNow: startExport, out: () => lastOut, dbg: () => ({ lines: (TL.lines || []).map(l => ({ i: l.i, at: +l.at.toFixed(2), len: +l.len.toFixed(2) })), musicOff: S.musicOff || 0, sel: selAud, vl: TL.scenes.map(sc => [+(sc.vlead || 0).toFixed(2), sc.wt && sc.wt[0] ? +sc.wt[0].t0.toFixed(2) : null]), texts: TL.scenes.map(sc => sc.text.slice(0, 18)), sh: sync ? sync.map(r => r.sh || 0) : null, ovls: (TL.mi || []).map(e => ({ i: e.i, k: e.k, a: +e.a.toFixed(2), b: +e.b.toFixed(2), kind: e.it.m.kind, w: +e.it.w.toFixed(3), x: +e.it.x.toFixed(3), y: +e.it.y.toFixed(3), shape: e.it.shape, blend: e.it.blend, sound: !!e.it.m.useSound, audio: !!e.it.m.audio, op: e.it.op, border: !!e.it.border, anim: e.it.anim, at: e.it.at, dur: e.it.dur, url: e.it.m.url || null, playing: e.it.m.el ? !e.it.m.el.paused : null, ct: e.it.m.el ? +e.it.m.el.currentTime.toFixed(2) : null })), trans, look: media.map(m => m ? Object.assign({ kind: m.kind }, pickF(m, LOOKF)) : null), drag: drag ? { kind: drag.h.kind, moved: drag.moved } : null, playT, sel, undo: UNDO.length, redo: REDO.length, script: S.script, sync, ovl, capY: S.capY, selText, selCap, cv: [cv.width, cv.height], hits: HITS.map(h => ({ kind: h.kind, i: h.i, k: h.k, x0: Math.round(h.x0), y0: Math.round(h.y0), x1: Math.round(h.x1), y1: Math.round(h.y1) })), media: media.map(m => m && m.kind === 'video' ? { in: m.in, out: m.out, speed: m.speed, vol: m.vol, dur: m.dur, name: m.name } : m ? 'image' : null) }), state: () => ({ S, total: TL.total, scenes: TL.scenes.map(s => ({ kind: s.kind, text: s.text, start: s.start, dur: s.dur })) }),
   set: o => { if (o.look && !('font' in o)) o = Object.assign({ font: LOOKS[o.look].font, upper: LOOKS[o.look].upper }, o); Object.assign(S, o); changed(); }, frame: (t, W, H) => { const c = document.createElement('canvas'); c.width = W; c.height = H; drawFrame(c.getContext('2d'), W, H, t); return c.toDataURL('image/jpeg', 0.9); } };
 }

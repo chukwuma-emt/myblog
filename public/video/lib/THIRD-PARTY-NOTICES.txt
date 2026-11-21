@@ -891,3 +891,14 @@ That's all there is to it!
 - phonemizer (in lib/voice/worker.js) - Copyright Joshua Lochner. Apache-2.0. https://github.com/xenova/phonemizer
   It contains eSpeak NG compiled to JavaScript/WebAssembly - GPL-3.0. Source: https://github.com/espeak-ng/espeak-ng
 - Text normalisation and phoneme fixes adapted from kokoro-js - Copyright Joshua Lochner. Apache-2.0. https://github.com/hexgrad/kokoro/tree/main/kokoro.js
+- Pocket TTS text-to-speech model (lib/voice/natural-1.wasm to natural-7.wasm) - Copyright Kyutai. CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). https://github.com/kyutai-labs/pocket-tts
+  Exported to ONNX by pocket-tts-onnx (https://github.com/thewh1teagle/pocket-tts-onnx, CC BY 4.0), English model release models-v1.0.
+  Changes made here: the large float32 weights are stored as float16 to halve the download (they are turned back into
+  float32 when the model starts), the voice encoder used for cloning is left out, and the file is split into parts.
+- Pocket TTS runtime code (in lib/voice/worker.js) - pocket-tts-onnx by thewh1teagle. CC BY 4.0. https://github.com/thewh1teagle/pocket-tts-onnx
+  Changes made here: it runs on the same onnxruntime as the other voices, and can free its memory. The speed change
+  follows that project's WSOLA example.
+- Natural voices (lib/voice/natural-voices.wasm), as voice embeddings from https://huggingface.co/kyutai/tts-voices:
+  Alba - recording by Alba McKenna (alba-mackenna/casual.wav), CC BY 4.0.
+  Anna and Michael - VCTK corpus speakers p228 and p360, CSTR, University of Edinburgh, CC BY 4.0. https://datashare.ed.ac.uk/handle/10283/3443
+  Marius and Javert - Kyutai voice donations, CC0.
