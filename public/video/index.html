@@ -121,7 +121,16 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 .tlt.ov{background:#c8641e}
 .tlaud{width:max-content;padding:0 50% 5px}
 .tlaudin{position:relative}
-.tla{position:absolute;height:18px;border:0;border-radius:5px;padding:0 6px;color:#fff;font:600 11px/18px Archivo,system-ui,sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;box-shadow:inset -1px 0 0 rgba(0,0,0,.35)}
+.tla{position:absolute;height:24px;border:0;border-radius:5px;padding:0 6px;color:#fff;font:600 12px/24px Archivo,system-ui,sans-serif;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;box-shadow:inset -1px 0 0 rgba(0,0,0,.35)}
+.tla.sel{box-shadow:inset 0 0 0 2px #fff,0 0 0 2px var(--rec);z-index:2}
+/* a picked bar can be dragged without scrolling the timeline; text and overlay bars show grips at their ends */
+.tlt.sel,.tla.sel{touch-action:none;cursor:grab}
+.tlt.sel::before,.tlt.sel::after{content:'';position:absolute;top:5px;bottom:5px;width:4px;border-radius:2px;background:#fff;opacity:.9}
+.tlt.sel::before{left:4px}.tlt.sel::after{right:4px}
+.tlt.drag,.tla.drag{opacity:.85;cursor:grabbing;z-index:3}
+.tlrow{position:relative;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.tlb.lift{opacity:.55;outline:2px dashed var(--rec);outline-offset:-2px}
+.tldrop{position:absolute;top:3px;bottom:3px;width:4px;border-radius:2px;background:var(--rec);pointer-events:none;z-index:4}
 .tla.v{background:#14866a}
 .tla.m{background:#2d63c8}
 .tla.lost{background:transparent;color:var(--rec);box-shadow:inset 0 0 0 1px var(--rec)}
@@ -360,6 +369,6 @@ input[type=text]{width:100%;min-height:44px;padding:0 12px;border:1px solid var(
 <input class="vh" type="file" id="fVoice" accept="audio/*,video/*" tabindex="-1" aria-hidden="true">
 <input class="vh" type="file" id="fMusic" accept="audio/*" tabindex="-1" aria-hidden="true">
 
-<script src="stv.js?v=2.8"></script>
+<script src="stv.js?v=2.9"></script>
 </body>
 </html>
